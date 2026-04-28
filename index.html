@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Main Dashboard</title>
+  <style>
+    :root {
+      --bg: #f5f7fb;
+      --card: #ffffff;
+      --text: #1f2937;
+      --muted: #6b7280;
+      --border: #d1d5db;
+      --shadow: 0 10px 30px rgba(0,0,0,0.08);
+      --kpi: #2563eb;
+      --pm: #059669;
+      --sp: #f59e0b;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", Arial, sans-serif;
+      background: linear-gradient(135deg, #f9fafb 0%, #eef2ff 100%);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 32px;
+    }
+    .container { width: min(1200px, 100%); }
+    .header { text-align: center; margin-bottom: 36px; }
+    .header h1 {
+      margin: 0 0 10px;
+      font-size: clamp(28px, 3vw, 40px);
+      font-weight: 800;
+      letter-spacing: -0.02em;
+    }
+    .header p { margin: 0; color: var(--muted); font-size: 16px; }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(260px, 1fr));
+      gap: 24px;
+    }
+    .card {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      background: var(--card);
+      border: 3px solid var(--border);
+      border-radius: 24px;
+      padding: 36px 24px;
+      text-decoration: none;
+      color: inherit;
+      box-shadow: var(--shadow);
+      transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+      min-height: 260px;
+      overflow: hidden;
+    }
+    .card:hover {
+      transform: translateY(-6px);
+      box-shadow: 0 18px 40px rgba(0,0,0,0.12);
+    }
+    .card::after {
+      content: "";
+      position: absolute;
+      inset: auto -30px -30px auto;
+      width: 120px;
+      height: 120px;
+      border-radius: 999px;
+      background: rgba(0,0,0,0.03);
+    }
+    .icon-wrap {
+      width: 96px;
+      height: 96px;
+      border-radius: 24px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 20px;
+      border: 3px solid currentColor;
+      background: rgba(255,255,255,0.7);
+    }
+    .icon { width: 52px; height: 52px; }
+    .card h2 { margin: 0 0 10px; font-size: 28px; font-weight: 800; }
+    .card p {
+      margin: 0;
+      color: var(--muted);
+      line-height: 1.5;
+      font-size: 15px;
+      max-width: 230px;
+    }
+    .kpi { color: var(--kpi); }
+    .pm { color: var(--pm); }
+    .sp { color: var(--sp); }
+    .footer-note {
+      margin-top: 18px;
+      text-align: center;
+      color: var(--muted);
+      font-size: 13px;
+    }
+    @media (max-width: 900px) {
+      .grid { grid-template-columns: 1fr; }
+      .card { min-height: 220px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>Facility Main Dashboard</h1>
+      <p>KPI, PM, Spare Parts 대시보드로 이동할 수 있는 메인 화면입니다.</p>
+    </div>
+    <div class="grid">
+
+      <a class="card kpi" href="KPI.html" target="_blank" rel="noopener noreferrer">
+        <div class="icon-wrap">
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M4 19h16"/>
+            <path d="M7 16V10"/>
+            <path d="M12 16V5"/>
+            <path d="M17 16v-7"/>
+          </svg>
+        </div>
+        <h2>KPI</h2>
+        <p>설비 KPI 현황, 성과 지표, 추세 분석 화면으로 이동</p>
+      </a>
+
+      <a class="card pm" href="PM.html" target="_blank" rel="noopener noreferrer">
+        <div class="icon-wrap">
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M14.7 6.3a1 1 0 0 0-1.4 0L5 14.6V19h4.4l8.3-8.3a1 1 0 0 0 0-1.4l-3-3Z"/>
+            <path d="m12 8 4 4"/>
+            <path d="M3 21h18"/>
+          </svg>
+        </div>
+        <h2>PM</h2>
+        <p>예방정비 실적, 계획 대비 이행률, 월별/누적 관리 화면으로 이동</p>
+      </a>
+
+      <a class="card sp" href="SPARE_PARTS.html" target="_blank" rel="noopener noreferrer">
+        <div class="icon-wrap">
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 3l7 4v10l-7 4-7-4V7l7-4Z"/>
+            <path d="M12 7l7 4"/>
+            <path d="M12 7 5 11"/>
+            <path d="M12 21v-6"/>
+          </svg>
+        </div>
+        <h2>Spare Parts</h2>
+        <p>예비품 재고, 안전재고 충족률, 관리 현황 화면으로 이동</p>
+      </a>
+
+    </div>
+    <div class="footer-note">
+      ※ 각 대시보드는 새 탭으로 열립니다.
+    </div>
+  </div>
+</body>
+</html>

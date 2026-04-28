@@ -1,0 +1,1286 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Spare Parts Safety Stock Fulfillment Rate</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;700;800&family=Space+Grotesk:wght@600;700&display=swap" rel="stylesheet">
+
+  <!-- Chart.js (for chart) -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <!-- SheetJS (for reading .xlsx locally in browser) -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+
+  <style>
+    :root{
+      --bg:#ffffff;
+      --fg:#111827;
+      --muted:#6b7280;
+      --border:#111827;
+      --panel:#ffffff;
+      --shadow: 0 1px 0 rgba(0,0,0,.04);
+      --radius: 4px;
+      --pad: 12px;
+      --title: 14px;
+      --body: 12px;
+    }
+    *{box-sizing:border-box;}
+    body{
+      margin:0;
+      font-family: Manrope, "Segoe UI", Arial, sans-serif;
+      background:var(--bg);
+      color:var(--fg);
+    }
+    .wrap{
+      padding:12px;
+      max-width: 1100px;
+      margin: 0 auto;
+    }
+
+    /* Layout mirrors the provided sketch */
+    .grid{
+      display:grid;
+      grid-template-columns: 1fr 1fr;
+      /* Added a new row for global month selector above category tables */
+      grid-template-rows: minmax(120px, auto) minmax(560px, auto) minmax(70px, auto) auto auto minmax(220px, 1fr);
+      gap:12px;
+      grid-template-areas:
+        "date load"
+        "chart chart"
+        "month month"
+        "cat1 cat2"
+        "cat3 cat4"
+        "list list";
+    }
+
+    .panel{
+      background:var(--panel);
+      border:2px solid var(--border);
+      border-radius:var(--radius);
+      padding:var(--pad);
+      box-shadow: var(--shadow);
+      overflow: visible;
+    }
+    .panel-title{
+      font-weight:700;
+      font-size: var(--title);
+      margin:0 0 8px 0;
+      line-height:1.25;
+    }
+
+    /* Areas */
+    #datePanel{
+      grid-area:date;
+      display:flex;
+      align-items:stretch;
+      justify-content:flex-start;
+      gap:10px;
+      flex-wrap:wrap;
+      min-height:120px;
+      position:relative;
+      overflow:hidden;
+      background:linear-gradient(135deg, #f5f9ff 0%, #ffffff 55%, #eef6ff 100%);
+    }
+    .hero-card{
+      position:relative;
+      z-index:1;
+      display:grid;
+      gap:8px;
+      width:100%;
+      align-content:center;
+    }
+    .date-chip{
+      display:inline-flex;
+      align-items:center;
+      gap:6px;
+      width:fit-content;
+      padding:5px 11px;
+      border:1px solid #bfdbfe;
+      background:#e8f1ff;
+      border-radius:999px;
+      color:#1d4ed8;
+      font-family: "Space Grotesk", Manrope, sans-serif;
+      font-size:12px;
+      font-weight:700;
+      letter-spacing:.06em;
+      text-transform:uppercase;
+    }
+    .date-chip .date-label{opacity:.85;}
+    .hero-title{
+      font-family: "Space Grotesk", Manrope, sans-serif;
+      font-size: clamp(28px, 3vw, 46px);
+      font-weight:700;
+      line-height:1.08;
+      margin-top:2px;
+      color:#0f172a;
+      letter-spacing:-0.02em;
+      max-width: 20ch;
+    }
+    .hero-subtitle{
+      font-size:12px;
+      color:#475569;
+      font-weight:600;
+      letter-spacing:.02em;
+    }
+    #loadPanel{grid-area:load; min-height:120px;}
+    #chartPanel{grid-area:chart;}
+    #monthPanel{grid-area:month;}
+    #cat1{grid-area:cat1; align-self:start;}
+    #cat2{grid-area:cat2; align-self:start;}
+    #cat3{grid-area:cat3; align-self:start;}
+    #cat4{grid-area:cat4; align-self:start;}
+    #listPanel{grid-area:list;}
+
+    .kv{display:flex; gap:10px; align-items:baseline; flex-wrap:wrap;}
+    .kv .k{color:var(--muted); font-size:12px;}
+    .kv .v{font-weight:700;}
+
+    .fileRow{display:flex; gap:10px; align-items:flex-start; flex-wrap:wrap;}
+    input[type=file]{
+      border:1px solid #d1d5db;
+      padding:6px;
+      border-radius:4px;
+      background:#fff;
+      font-size:12px;
+      max-width: 320px;
+    }
+    .btn{
+      border:2px solid var(--border);
+      background:#fff;
+      padding:6px 10px;
+      border-radius:4px;
+      cursor:pointer;
+      font-weight:700;
+      font-size:12px;
+      white-space:nowrap;
+    }
+    .btn:hover{background:#f9fafb;}
+
+    .hint{font-size:12px; color:var(--muted); margin-top:8px; line-height:1.35;}
+    #status{margin-top:8px; font-size:12px;}
+    #fileName{display:block; max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+
+    table{
+      width:100%;
+      border-collapse:collapse;
+      font-size: var(--body);
+    }
+    th, td{
+      border:1px solid #111827;
+      padding:6px 8px;
+      text-align:left;
+      vertical-align:top;
+    }
+    th{background:#f3f4f6; font-weight:700;}
+    .right{text-align:right;}
+    .center{text-align:center;}
+
+    .scroll{
+      height: calc(100% - 26px);
+      overflow:auto;
+    }
+    #cat1 .scroll, #cat2 .scroll, #cat3 .scroll, #cat4 .scroll{
+      height:auto;
+      overflow:visible;
+    }
+
+    /* Chart */
+    .chartBox{ height: 320px; display:grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap:12px; align-items:center; }
+    .donutCell{ position:relative; height:100%; min-height:0; }
+
+    .lineChartWrap{
+      margin-top:12px;
+      border:2px solid #111827;
+      border-radius:4px;
+      padding:8px;
+      height: 260px;
+      background:#fff;
+    }
+
+    /* ONE Month selector (dropdown with scroll) */
+    .monthSelectRow{
+      display:flex;
+      align-items:center;
+      gap:10px;
+      margin:0;
+      padding:0;
+      flex-wrap:wrap;
+    }
+    .monthSelectLabel{
+      font-size:12px;
+      color:var(--muted);
+      font-weight:700;
+      white-space:nowrap;
+    }
+    .monthSelect{
+      width: 220px;
+      border:2px solid #111827;
+      border-radius:6px;
+      padding:6px 10px;
+      background:#fff;
+      font-size:12px;
+      line-height:1.2;
+    }
+
+    .selMonthTxt{margin:-4px 0 8px; font-size:11px; color:var(--muted);}
+
+    .small{font-size:11px; color:var(--muted);}
+    .filterRow{
+      display:flex;
+      align-items:center;
+      gap:10px;
+      flex-wrap:wrap;
+      margin-bottom:8px;
+    }
+
+    @media (max-width: 860px){
+      .grid{
+        grid-template-columns: 1fr;
+        grid-template-rows: auto;
+        grid-template-areas:
+          "date"
+          "load"
+          "chart"
+          "month"
+          "cat1"
+          "cat2"
+          "cat3"
+          "cat4"
+          "list";
+      }
+      #datePanel{justify-content:flex-start; gap:12px;}
+      .hero-title{font-size:34px;}
+      .chartBox{grid-template-columns: 1fr 1fr; height:auto;}
+      .donutCell{height:180px;} 
+      .lineChartWrap{height: 240px;}
+    }
+
+    @page{
+      size: A4 portrait;
+      margin: 8mm;
+    }
+    @media print{
+      html, body{
+        background:#fff;
+      }
+      body{
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+        margin:0;
+      }
+      .wrap{
+        max-width:1100px;
+        width:100%;
+        margin:0 auto;
+        padding:12px;
+      }
+      #loadPanel{
+        display:none !important;
+      }
+      #datePanel{
+        grid-column: 1 / -1;
+      }
+      .date-chip{
+        font-size:10px;
+        padding:4px 9px;
+      }
+      .hero-title{
+        font-size:26px;
+      }
+      .hero-subtitle{
+        font-size:10px;
+      }
+      #datePanel, #loadPanel, #chartPanel, #monthPanel, #cat1, #cat2, #cat3, #cat4{
+        break-inside: avoid;
+        page-break-inside: avoid;
+      }
+      .chartBox{
+        grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+        height: 320px !important;
+        gap: 12px !important;
+      }
+      .donutCell{
+        height: 100% !important;
+        min-height: 0 !important;
+      }
+      .lineChartWrap{
+        height: 260px !important;
+      }
+      #listPanel .scroll{
+        height:auto !important;
+        overflow:visible !important;
+      }
+      #listPanel{
+        break-before: page;
+        page-break-before: always;
+      }
+      .donutCell canvas,
+      .lineChartWrap canvas{
+        display:block;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="grid">
+
+      <!-- Date -->
+      <section class="panel" id="datePanel">
+        <div class="hero-card">
+          <div class="date-chip"><span class="date-label">Date</span><span id="today"></span></div>
+          <div class="hero-title">Spare Parts Safety Stock Management</div>
+          <div class="hero-subtitle">Warehouse spare-parts fulfillment dashboard</div>
+        </div>
+ </section>
+
+      <!-- Load file -->
+      <section class="panel" id="loadPanel">
+        <div class="panel-title">Load data file: select excel file by user</div>
+        <div class="fileRow">
+          <input id="fileInput" type="file" accept=".xlsx,.xls" />
+          <button class="btn" id="btnLoadSample">Use built-in sample data</button>
+        </div>
+        <span class="small" id="fileName"></span>
+        <div id="status" class="hint">Tip: Use the provided sample Excel format (sheets <code>Monthly</code> and <code>Parts</code>).</div>
+      
+      <!-- Auto-load status indicator -->
+      <div id="loadStatus" style="display:none; margin-top:8px; padding:8px 14px; border-radius:8px; font-size:13px; align-items:center; gap:8px; flex-wrap:wrap;">
+        <span id="loadStatusIcon"></span>
+        <span id="loadStatusText"></span>
+        <button id="retryBtn" onclick="autoLoadExcel()" style="display:none; margin-left:10px; padding:4px 12px; border:2px solid #333; background:#fff; border-radius:8px; cursor:pointer; font-size:12px; font-weight:700;">🔄 다시 시도</button>
+        <button id="manualBtn" onclick="document.getElementById('xlsFile').click()" style="display:none; margin-left:6px; padding:4px 12px; border:2px solid #333; background:#fff; border-radius:8px; cursor:pointer; font-size:12px; font-weight:700;">📁 수동 업로드</button>
+      </div>
+</section>
+
+      <!-- Chart -->
+      <section class="panel" id="chartPanel">
+        <div class="panel-title">Chart for overall data (Safety Stock Fulfillment Rate by Category)</div>
+        <div class="chartBox">
+          <div class="donutCell"><canvas id="overallChart-ASRS"></canvas></div>
+          <div class="donutCell"><canvas id="overallChart-Conveyor"></canvas></div>
+          <div class="donutCell"><canvas id="overallChart-Utility"></canvas></div>
+          <div class="donutCell"><canvas id="overallChart-Electrical"></canvas></div>
+        </div>
+        <div class="hint">Uses <code>Parts</code> sheet status column (<code>O/X</code>) to calculate category fulfillment rate.</div>
+        <div class="panel-title" style="margin-top:12px;">Monthly Fulfillment Trend (Monthly!F)</div>
+        <div class="lineChartWrap">
+          <canvas id="monthlyTrendChart"></canvas>
+        </div>
+      </section>
+
+      <!-- Global Month Selector (moved here: right above category tables) -->
+      <section class="panel" id="monthPanel">
+        <div class="monthSelectRow" aria-label="Global month selector">
+          <span class="monthSelectLabel">Month (apply to all categories)</span>
+          <select class="monthSelect" id="monthSelect-ALL"></select>
+          <span class="small" id="selMonth-ALL"></span>
+        </div>
+      </section>
+
+      <!-- Category tables -->
+      <section class="panel" id="cat1">
+        <div class="panel-title">ASRS data table</div>
+        <div class="selMonthTxt" id="selMonth-ASRS"></div>
+        <div class="scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>Total Qty</th>
+                <th>Fulfilled Qty</th>
+                <th>Not Fulfilled Qty</th>
+                <th>Fulfillment Rate</th>
+              </tr>
+            </thead>
+            <tbody id="tbody-ASRS"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="panel" id="cat2">
+        <div class="panel-title">Conveyor data table</div>
+        <div class="selMonthTxt" id="selMonth-Conveyor"></div>
+        <div class="scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>Total Qty</th>
+                <th>Fulfilled Qty</th>
+                <th>Not Fulfilled Qty</th>
+                <th>Fulfillment Rate</th>
+              </tr>
+            </thead>
+            <tbody id="tbody-Conveyor"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="panel" id="cat3">
+        <div class="panel-title">Utility data table</div>
+        <div class="selMonthTxt" id="selMonth-Utility"></div>
+        <div class="scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>Total Qty</th>
+                <th>Fulfilled Qty</th>
+                <th>Not Fulfilled Qty</th>
+                <th>Fulfillment Rate</th>
+              </tr>
+            </thead>
+            <tbody id="tbody-Utility"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="panel" id="cat4">
+        <div class="panel-title">Electrical data table</div>
+        <div class="selMonthTxt" id="selMonth-Electrical"></div>
+        <div class="scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>Total Qty</th>
+                <th>Fulfilled Qty</th>
+                <th>Not Fulfilled Qty</th>
+                <th>Fulfillment Rate</th>
+              </tr>
+            </thead>
+            <tbody id="tbody-Electrical"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- Not fulfilled list -->
+      <section class="panel" id="listPanel">
+        <div class="panel-title">List of not fulfilled items (Safety stock not met)</div>
+        <div class="filterRow">
+          <label class="monthSelectLabel" for="nfCategoryFilter">Category filter</label>
+          <select class="monthSelect" id="nfCategoryFilter"></select>
+          <span class="small" id="nfFilterInfo"></span>
+        </div>
+        <div class="scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>Category</th>
+                <th>Hierarchy-1</th>
+                <th>Hierarchy-2</th>
+                <th>Hierarchy-3</th>
+                <th class="right">SafetyStock</th>
+                <th class="right">CurrentQty</th>
+                <th class="right">PurchaseNeededQty</th>
+                <th>StorageLocation</th>
+              </tr>
+            </thead>
+            <tbody id="tbody-notFulfilled"></tbody>
+          </table>
+        </div>
+      </section>
+
+    </div>
+  </div>
+
+<script>
+  const CATEGORIES = ["ASRS","Conveyor","Utility","Electrical"];
+  const COLORS = {
+    ASRS: "#2563eb",
+    Conveyor: "#16a34a",
+    Utility: "#f97316",
+    Electrical: "#7c3aed"
+  };
+
+  // ---- Helpers ----
+  const pad2 = n => String(n).padStart(2,"0");
+  function todayString(){
+    const d = new Date();
+    return `${d.getFullYear()}.${pad2(d.getMonth()+1)}.${pad2(d.getDate())}`;
+  }
+  function excelSerialToDate(serial){
+    const n = Number(serial);
+    if (!isFinite(n)) return null;
+    const utcDays = Math.floor(n - 25569);
+    const utcValue = utcDays * 86400;
+    const d = new Date(utcValue * 1000);
+    if (isNaN(d.getTime())) return null;
+    return d;
+  }
+  function formatYYYYMM(v){
+    if (v instanceof Date && !isNaN(v.getTime())){
+      return `${v.getFullYear()}-${pad2(v.getMonth()+1)}`;
+    }
+    if (typeof v === 'number' && isFinite(v) && v > 20000 && v < 60000){
+      const d = excelSerialToDate(v);
+      return d ? `${d.getFullYear()}-${pad2(d.getMonth()+1)}` : String(v);
+    }
+    const s = String(v ?? '').trim();
+    if (!s) return '';
+    if (/^\d{4}-\d{2}$/.test(s)) return s;
+    if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0,7);
+    if (/^\d{4}\/\d{1,2}(\/\d{1,2})?$/.test(s)){
+      const p = s.split('/');
+      return `${p[0]}-${pad2(Number(p[1]))}`;
+    }
+    if (/^\d{5}(?:\.\d+)?$/.test(s)){
+      const d = excelSerialToDate(Number(s));
+      return d ? `${d.getFullYear()}-${pad2(d.getMonth()+1)}` : s;
+    }
+    const parsed = new Date(s);
+    if (!isNaN(parsed.getTime())) return `${parsed.getFullYear()}-${pad2(parsed.getMonth()+1)}`;
+    return s.slice(0,7);
+  }
+  function fmtInt(x){
+    const n = Number(x);
+    if (!isFinite(n)) return "–";
+    return n.toLocaleString();
+  }
+  function fmtPct(x){
+    const n = Number(x);
+    if (!isFinite(n)) return "–";
+    return (n*100).toFixed(1) + "%";
+  }
+  function normKey(k){
+    return String(k ?? "").trim().toLowerCase().replace(/\s+/g,"");
+  }
+  function getField(row, candidates){
+    const keys = Object.keys(row);
+    const map = new Map(keys.map(k => [normKey(k), k]));
+    for (const cand of candidates){
+      const nk = normKey(cand);
+      if (map.has(nk)) return row[map.get(nk)];
+    }
+    return undefined;
+  }
+  function toNum(v){
+    if (v === null || v === undefined || v === "") return NaN;
+    const n = Number(v);
+    return isFinite(n) ? n : NaN;
+  }
+  function toRate(v){
+    if (v === null || v === undefined || v === "") return NaN;
+    if (typeof v === "number"){
+      if (!isFinite(v)) return NaN;
+      if (v > 1 && v <= 100) return v / 100;
+      return v;
+    }
+    const s = String(v).trim();
+    if (!s) return NaN;
+    if (s.endsWith("%")){
+      const p = Number(s.slice(0, -1));
+      return isFinite(p) ? p / 100 : NaN;
+    }
+    const n = Number(s);
+    if (!isFinite(n)) return NaN;
+    if (n > 1 && n <= 100) return n / 100;
+    return n;
+  }
+  function normalizeCategory(v){
+    const s = String(v ?? "").trim().toLowerCase();
+    if (s === "asrs") return "ASRS";
+    if (s === "conveyor") return "Conveyor";
+    if (s === "utility") return "Utility";
+    if (s === "electrical") return "Electrical";
+    return "";
+  }
+
+  // ---- UI refs ----
+  const elToday = document.getElementById("today");
+  const elStatus = document.getElementById("status");
+  const elFileName = document.getElementById("fileName");
+  const elOverallRate = document.getElementById("overallRate");
+  elToday.textContent = todayString();
+
+  // ---- Global state ----
+  const selectedMonthByCat = Object.fromEntries(CATEGORIES.map(c => [c, "ALL"]));
+  let selectedMonthGlobal = "ALL";
+  let selectedNotFulfilledCategory = "ALL";
+  let reportData = null;
+
+  // ---- Chart ----
+  const donutCenterTextPlugin = {
+    id: 'donutCenterTextPlugin',
+    afterDraw(chart, args, pluginOptions){
+      const meta = chart.getDatasetMeta(0);
+      if (!meta || !meta.data || !meta.data.length) return;
+      const arc = meta.data[0];
+      const x = arc.x;
+      const y = arc.y;
+      const rate = Number(pluginOptions?.rate);
+      const text = isFinite(rate) ? fmtPct(rate) : '–';
+      const ctx = chart.ctx;
+
+      ctx.save();
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillStyle = '#111827';
+      ctx.font = '700 16px Segoe UI, Roboto, Arial, sans-serif';
+      ctx.fillText(text, x, y);
+      ctx.restore();
+    }
+  };
+
+  let chart = {};
+  let monthlyTrendChart = null;
+  function renderChart(monthLabels, seriesByCat){
+    for (const cat of Object.keys(chart)){
+      if (chart[cat]) chart[cat].destroy();
+    }
+    chart = {};
+
+    for (const cat of CATEGORIES){
+      const ctx = document.getElementById(`overallChart-${cat}`);
+      if (!ctx) continue;
+
+      const chartSummary = reportData?.chartSummaries?.[cat];
+      const hasChartSummary = !!chartSummary && (Number(chartSummary.fulfilled) + Number(chartSummary.notFulfilled) > 0);
+      const summary = hasChartSummary
+        ? chartSummary
+        : (reportData?.summaries?.[cat] || { fulfilled: 0, notFulfilled: 0, rate: NaN });
+      const fulfilled = Number(summary.fulfilled) || 0;
+      const notFulfilled = Number(summary.notFulfilled) || 0;
+      const rate = Number(summary.rate);
+
+      chart[cat] = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+          labels: ['Fulfilled', 'Not Fulfilled'],
+          datasets: [{
+            data: [fulfilled, notFulfilled],
+            backgroundColor: [COLORS[cat], '#e5e7eb'],
+            borderColor: '#ffffff',
+            borderWidth: 2,
+            hoverOffset: 4
+          }]
+        },
+        plugins: [donutCenterTextPlugin],
+        options: {
+          maintainAspectRatio: false,
+          cutout: '62%',
+          plugins: {
+            legend: { position: 'bottom' },
+            title: { display: true, text: cat, font: { size: 13, weight: '700' } },
+            donutCenterTextPlugin: { rate },
+            tooltip: {
+              callbacks: {
+                label: (c) => {
+                  const total = fulfilled + notFulfilled;
+                  const value = Number(c.parsed) || 0;
+                  const itemRate = total > 0 ? value / total : 0;
+                  return `${c.label}: ${fmtInt(value)} (${fmtPct(itemRate)})`;
+                }
+              }
+            }
+          }
+        }
+      });
+    }
+  }
+
+  function computeMonthlyRateTrend(monthlyRows){
+    const acc = {};
+    const monthSet = new Set();
+
+    for (const cat of CATEGORIES){
+      acc[cat] = {};
+    }
+
+    for (const r of (monthlyRows || [])){
+      const month = formatYYYYMM(getField(r, ["Month","YYYY-MM","YearMonth"]));
+      const categoryRaw = getField(r, ["Category","Cat"]);
+      const category = normalizeCategory(categoryRaw) || String(categoryRaw ?? "").trim();
+      const total = toNum(getField(r, ["TotalQty","Total","TotalQuantity","Total_Qty"]));
+      const fulfilled = toNum(getField(r, ["FulfilledQty","Fulfilled","FulfilledQuantity","Fulfilled_Qty"]));
+      const rate = toRate(getField(r, ["FulfillmentRate","Rate","MonthlyRate","FulfilledRate"]));
+      if (!month || !CATEGORIES.includes(category)) continue;
+      if (!isFinite(total) || total <= 0 || !isFinite(fulfilled)) continue;
+      if (!isFinite(rate)) continue;
+
+      monthSet.add(month);
+      if (!acc[category][month]) acc[category][month] = { sum: 0, count: 0 };
+      acc[category][month].sum += rate;
+      acc[category][month].count += 1;
+    }
+
+    const months = [...monthSet].sort().filter(m =>
+      CATEGORIES.some(cat => acc[cat][m] && acc[cat][m].count > 0)
+    );
+    const series = {};
+    for (const cat of CATEGORIES){
+      series[cat] = months.map(m => {
+        const a = acc[cat][m];
+        return a && a.count > 0 ? a.sum / a.count : null;
+      });
+    }
+
+    return { months, series };
+  }
+
+  function renderMonthlyTrendChart(monthLabels, seriesByCat){
+    const canvas = document.getElementById("monthlyTrendChart");
+    if (!canvas) return;
+    if (monthlyTrendChart) monthlyTrendChart.destroy();
+
+    const datasets = CATEGORIES.map(cat => ({
+      label: cat,
+      data: seriesByCat[cat] || [],
+      borderColor: COLORS[cat],
+      backgroundColor: COLORS[cat],
+      tension: 0.25,
+      borderWidth: 2,
+      pointRadius: 3,
+      pointHoverRadius: 5,
+      fill: false,
+      spanGaps: false,
+      clip: false
+    }));
+
+    monthlyTrendChart = new Chart(canvas, {
+      type: "line",
+      data: { labels: monthLabels, datasets },
+      options: {
+        maintainAspectRatio: false,
+        layout: { padding: { top: 10 } },
+        interaction: { mode: "index", intersect: false },
+        scales: {
+          y: {
+            min: 0.6,
+            max: 1,
+            ticks: {
+              stepSize: 0.05,
+              callback: (v) => fmtPct(Number(v))
+            },
+            title: { display: true, text: "Fulfillment Rate" }
+          },
+          x: {
+            title: { display: true, text: "Month" }
+          }
+        },
+        plugins: {
+          legend: { position: "bottom" },
+          tooltip: {
+            callbacks: {
+              label: (c) => `${c.dataset.label}: ${fmtPct(c.parsed.y)}`
+            }
+          }
+        }
+      }
+    });
+  }
+
+  function resizeAllCharts(){
+    for (const cat of Object.keys(chart)){
+      if (chart[cat]) chart[cat].resize();
+    }
+    if (monthlyTrendChart) monthlyTrendChart.resize();
+  }
+
+  function resizeAllChartsStable(){
+    resizeAllCharts();
+    setTimeout(resizeAllCharts, 120);
+  }
+
+  window.addEventListener("beforeprint", () => {
+    setTimeout(resizeAllChartsStable, 0);
+  });
+  window.addEventListener("afterprint", () => {
+    setTimeout(resizeAllChartsStable, 0);
+  });
+
+  // ---- Category summary table ----
+  function renderCategorySummary(cat, summary){
+    const tbody = document.getElementById(`tbody-${cat}`);
+    tbody.innerHTML = "";
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td class="right">${fmtInt(summary?.total)}</td>
+      <td class="right">${fmtInt(summary?.fulfilled)}</td>
+      <td class="right">${fmtInt(summary?.notFulfilled)}</td>
+      <td class="right">${fmtPct(summary?.rate)}</td>
+    `;
+    tbody.appendChild(tr);
+  }
+
+  // ---- ONE Month selector (applies to all categories) ----
+  function renderMonthSelectAll(months){
+    const sel = document.getElementById('monthSelect-ALL');
+    if (!sel) return;
+
+    sel.innerHTML = '';
+    const optAll = document.createElement('option');
+    optAll.value = 'ALL';
+    optAll.textContent = 'ALL (12M)';
+    sel.appendChild(optAll);
+
+    months.forEach(m => {
+      const opt = document.createElement('option');
+      opt.value = m;
+      opt.textContent = m;
+      sel.appendChild(opt);
+    });
+
+    sel.value = selectedMonthGlobal || 'ALL';
+    updateGlobalMonthText(sel.value);
+
+    sel.onchange = () => applyMonthToAll(sel.value);
+  }
+
+  function updateGlobalMonthText(monthKey){
+    const t = document.getElementById('selMonth-ALL');
+    if (!t) return;
+    t.textContent = monthKey === 'ALL' ? 'Showing: All months (12M total)' : `Showing: ${monthKey}`;
+  }
+
+  function applyMonthToAll(monthKey){
+    selectedMonthGlobal = monthKey;
+    updateGlobalMonthText(monthKey);
+
+    for (const cat of CATEGORIES){
+      selectedMonthByCat[cat] = monthKey;
+      const selTxt = document.getElementById(`selMonth-${cat}`);
+      if (selTxt){
+        selTxt.textContent = monthKey === 'ALL' ? 'Showing: All months (12M total)' : `Showing: ${monthKey}`;
+      }
+
+      if (!reportData) continue;
+      const summary = monthKey === 'ALL'
+        ? reportData.summaries[cat]
+        : (reportData.monthSummaries?.[cat]?.[monthKey] || {total:0, fulfilled:0, notFulfilled:0, rate:NaN});
+
+      renderCategorySummary(cat, summary);
+    }
+  }
+
+  // ---- Not fulfilled item list ----
+  function renderNotFulfilledItems(items){
+    const tbody = document.getElementById("tbody-notFulfilled");
+    tbody.innerHTML = "";
+
+    if (!items.length){
+      const tr = document.createElement("tr");
+      tr.innerHTML = `<td colspan="8" class="center">No not-fulfilled items 🎉</td>`;
+      tbody.appendChild(tr);
+      return;
+    }
+
+    for (const it of items){
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td>${it.Category ?? ""}</td>
+        <td>${it.ItemName ?? ""}</td>
+        <td>${it.Description1 ?? ""}</td>
+        <td>${it.Description2 ?? ""}</td>
+        <td class="right">${fmtInt(it.SafetyStock)}</td>
+        <td class="right">${fmtInt(it.CurrentQty)}</td>
+        <td class="right">${fmtInt(it.PurchaseNeededQty)}</td>
+        <td>${it.StorageLocation ?? ""}</td>
+      `;
+      tbody.appendChild(tr);
+    }
+  }
+
+  function getFilteredNotFulfilledItems(){
+    const allItems = reportData?.notFulfilledItems || [];
+    if (selectedNotFulfilledCategory === "ALL") return allItems;
+    return allItems.filter(it => String(it.Category ?? "").trim() === selectedNotFulfilledCategory);
+  }
+
+  function renderNotFulfilledCategoryFilter(items){
+    const sel = document.getElementById("nfCategoryFilter");
+    const info = document.getElementById("nfFilterInfo");
+    if (!sel) return;
+
+    const rawCategories = [...new Set((items || [])
+      .map(it => String(it.Category ?? "").trim())
+      .filter(Boolean))];
+    const ordered = [
+      ...CATEGORIES.filter(c => rawCategories.includes(c)),
+      ...rawCategories.filter(c => !CATEGORIES.includes(c)).sort()
+    ];
+
+    sel.innerHTML = "";
+    const optAll = document.createElement("option");
+    optAll.value = "ALL";
+    optAll.textContent = "ALL";
+    sel.appendChild(optAll);
+
+    ordered.forEach(cat => {
+      const opt = document.createElement("option");
+      opt.value = cat;
+      opt.textContent = cat;
+      sel.appendChild(opt);
+    });
+
+    if (selectedNotFulfilledCategory !== "ALL" && !ordered.includes(selectedNotFulfilledCategory)){
+      selectedNotFulfilledCategory = "ALL";
+    }
+    sel.value = selectedNotFulfilledCategory;
+
+    sel.onchange = () => {
+      selectedNotFulfilledCategory = sel.value || "ALL";
+      const filtered = getFilteredNotFulfilledItems();
+      renderNotFulfilledItems(filtered);
+      if (info) info.textContent = `Rows: ${filtered.length}`;
+    };
+
+    const filtered = getFilteredNotFulfilledItems();
+    if (info) info.textContent = `Rows: ${filtered.length}`;
+  }
+
+  // ---- Compute ----
+  function computeFromMonthly(monthlyRows){
+    const recs = monthlyRows.map(r => {
+      const rawMonth = getField(r, ["Month","YYYY-MM","YearMonth"]);
+      const month = formatYYYYMM(rawMonth);
+      const category = getField(r, ["Category","Cat"]);
+      const total = toNum(getField(r, ["TotalQty","Total","TotalQuantity","Total_Qty"]));
+      const fulfilled = toNum(getField(r, ["FulfilledQty","Fulfilled","FulfilledQuantity","Fulfilled_Qty"]));
+      if (!month || !category) return null;
+      return { Month: month, Category: String(category).trim(), TotalQty: total, FulfilledQty: fulfilled };
+    }).filter(Boolean);
+
+    const valid = recs.filter(r => CATEGORIES.includes(r.Category) && isFinite(r.TotalQty) && isFinite(r.FulfilledQty));
+    if (!valid.length) throw new Error("No valid rows found in 'Monthly' sheet.");
+
+    const months = [...new Set(valid.map(r => r.Month))].sort();
+
+    // aggregate per month & category
+    const monthAgg = Object.fromEntries(CATEGORIES.map(c => [c, Object.fromEntries(months.map(m => [m, {total:0, fulfilled:0}]))]));
+    for (const r of valid){
+      if (!monthAgg[r.Category]) monthAgg[r.Category] = {};
+      if (!monthAgg[r.Category][r.Month]) monthAgg[r.Category][r.Month] = {total:0, fulfilled:0};
+      monthAgg[r.Category][r.Month].total += r.TotalQty;
+      monthAgg[r.Category][r.Month].fulfilled += r.FulfilledQty;
+    }
+
+    // series by category
+    const series = {};
+    for (const cat of CATEGORIES){
+      series[cat] = months.map(m => {
+        const a = monthAgg[cat][m];
+        return a.total > 0 ? a.fulfilled / a.total : null;
+      });
+    }
+
+    // month summaries and 12M summaries
+    const monthSummaries = {};
+    const summaries = {};
+    let grandTotal=0, grandFulfilled=0;
+
+    for (const cat of CATEGORIES){
+      monthSummaries[cat] = {};
+      let totalSum=0, fulfilledSum=0;
+
+      for (const m of months){
+        const a = monthAgg[cat][m];
+        const total = a.total;
+        const fulfilled = a.fulfilled;
+        const notFulfilled = total - fulfilled;
+        const rate = total>0 ? fulfilled/total : NaN;
+        monthSummaries[cat][m] = { total, fulfilled, notFulfilled, rate };
+
+        totalSum += total;
+        fulfilledSum += fulfilled;
+      }
+
+      const notFulfilledSum = totalSum - fulfilledSum;
+      const rateSum = totalSum>0 ? fulfilledSum/totalSum : NaN;
+      summaries[cat] = { total: totalSum, fulfilled: fulfilledSum, notFulfilled: notFulfilledSum, rate: rateSum };
+
+      grandTotal += totalSum;
+      grandFulfilled += fulfilledSum;
+    }
+
+    return { months, series, summaries, monthSummaries, overallRate: grandTotal>0 ? grandFulfilled/grandTotal : NaN };
+  }
+
+  function computePartsSafetySummaries(itemRows){
+    const summaries = Object.fromEntries(
+      CATEGORIES.map(c => [c, { total: 0, fulfilled: 0, notFulfilled: 0, rate: NaN }])
+    );
+
+    for (const r of (itemRows || [])){
+      const category = normalizeCategory(getField(r, ["EQUIPMENT","Equipment","Category","Cat"]));
+      if (!category) continue;
+
+      const rawStatus = getField(r, [
+        "안전재고\n충족현황",
+        "안전재고 충족현황",
+        "안전재고충족현황",
+        "SafetyStockStatus",
+        "SafetyStatus",
+        "Status"
+      ]);
+      const status = String(rawStatus ?? "").trim().toUpperCase();
+
+      let isFulfilled = null;
+      if (status === "O") isFulfilled = true;
+      if (status === "X") isFulfilled = false;
+
+      if (isFulfilled === null){
+        const safetyStock = toNum(getField(r, ["안전재고","SafetyStock","Safety","SS"]));
+        const currentQty = toNum(getField(r, ["현재재고","CurrentQty","OnHand","Current","Qty"]));
+        if (isFinite(safetyStock) && isFinite(currentQty)){
+          isFulfilled = currentQty >= safetyStock;
+        }
+      }
+
+      if (isFulfilled === null) continue;
+      summaries[category].total += 1;
+      if (isFulfilled) summaries[category].fulfilled += 1;
+      else summaries[category].notFulfilled += 1;
+    }
+
+    for (const cat of CATEGORIES){
+      const s = summaries[cat];
+      s.rate = s.total > 0 ? s.fulfilled / s.total : NaN;
+    }
+
+    return summaries;
+  }
+
+  function computeNotFulfilledItems(itemRows){
+    const items = itemRows.map(r => {
+      const isPartsFormat = !!(
+        getField(r,["EQUIPMENT"]) !== undefined ||
+        getField(r,["설치설비"]) !== undefined ||
+        getField(r,["현재재고"]) !== undefined ||
+        getField(r,["안전재고"]) !== undefined
+      );
+
+      if (isPartsFormat){
+        const rawCategory = getField(r,["EQUIPMENT","Equipment","Category","Cat"]);
+        const Category = normalizeCategory(rawCategory) || String(rawCategory ?? "").trim();
+        const h1 = getField(r,["Hierarchy-1","Hierarchy1"]);
+        const h2 = getField(r,["Hierarchy-2","Hierarchy2"]);
+        const h3 = getField(r,["Hierarchy-3","Hierarchy3"]);
+        const ItemName = h1;
+        const Description1 = h2;
+        const Description2 = h3;
+        const SafetyStock = toNum(getField(r,["안전재고","SafetyStock","Safety","SS"]));
+        const CurrentQty = toNum(getField(r,["현재재고","CurrentQty","OnHand","Current","Qty"]));
+        const StorageLocation = getField(r,["보관 위치","StorageLocation","Location","Bin"]);
+        if (!ItemName && !Description1 && !Description2) return null;
+        const purchase = (isFinite(SafetyStock) && isFinite(CurrentQty)) ? Math.max(0, SafetyStock-CurrentQty) : NaN;
+        const rate = (isFinite(SafetyStock) && SafetyStock>0 && isFinite(CurrentQty)) ? (CurrentQty/SafetyStock) : NaN;
+        return { Category, ItemName, Description1, Description2, SafetyStock, CurrentQty, PurchaseNeededQty: purchase, StorageLocation, CurrentFulfillmentRate: rate };
+      }
+
+      const rawCategory = getField(r,["Category","Cat"]);
+      const Category = normalizeCategory(rawCategory) || String(rawCategory ?? "").trim();
+      const ItemName = getField(r,["ItemName","Item","Part","Material"]);
+      const Description1 = getField(r,["Description1","Desc1","Description"]);
+      const Description2 = getField(r,["Description2","Desc2"]);
+      const SafetyStock = toNum(getField(r,["SafetyStock","Safety","SS"]));
+      const CurrentQty = toNum(getField(r,["CurrentQty","OnHand","Current","Qty"]));
+      const StorageLocation = getField(r,["StorageLocation","Location","Bin"]);
+      if (!ItemName) return null;
+      const purchase = (isFinite(SafetyStock) && isFinite(CurrentQty)) ? Math.max(0, SafetyStock-CurrentQty) : NaN;
+      const rate = (isFinite(SafetyStock) && SafetyStock>0 && isFinite(CurrentQty)) ? (CurrentQty/SafetyStock) : NaN;
+      return { Category, ItemName, Description1, Description2, SafetyStock, CurrentQty, PurchaseNeededQty: purchase, StorageLocation, CurrentFulfillmentRate: rate };
+    }).filter(Boolean);
+
+    return items.filter(it => isFinite(it.PurchaseNeededQty) && it.PurchaseNeededQty > 0)
+      .sort((a,b) => b.PurchaseNeededQty - a.PurchaseNeededQty);
+  }
+
+  // ---- Update report ----
+  function updateReport(monthlyRows, itemRows, meta={}){
+    const computed = computeFromMonthly(monthlyRows);
+    const chartSummaries = computePartsSafetySummaries(itemRows || []);
+    const trend = computeMonthlyRateTrend(monthlyRows || []);
+    const notFulfilledItems = computeNotFulfilledItems(itemRows || []);
+    reportData = { ...computed, chartSummaries, trend, notFulfilledItems };
+
+    renderChart(computed.months, computed.series);
+    renderMonthlyTrendChart(trend.months, trend.series);
+
+    // build ONE month selector then apply to all categories
+    renderMonthSelectAll(computed.months);
+    applyMonthToAll(selectedMonthGlobal || 'ALL');
+
+    if (elOverallRate) elOverallRate.textContent = fmtPct(computed.overallRate);
+
+    renderNotFulfilledCategoryFilter(notFulfilledItems);
+    renderNotFulfilledItems(getFilteredNotFulfilledItems());
+
+    const sourceName = meta.sourceName ? `Loaded: ${meta.sourceName}` : "Loaded.";
+    elStatus.innerHTML = `${sourceName}  |  Months: <b>${computed.months.length}</b>  |  Not-fulfilled items: <b>${notFulfilledItems.length}</b>`;
+  }
+
+  // ---- File loading ----
+  async function readExcelFile(file){
+    const ab = await file.arrayBuffer();
+    const wb = XLSX.read(ab, { type: 'array', cellDates: true });
+    const monthlyName = wb.SheetNames.find(n => n.toLowerCase() === 'monthly') || wb.SheetNames[0];
+    const partsName = wb.SheetNames.find(n => n.toLowerCase() === 'parts');
+    const itemsName = wb.SheetNames.find(n => n.toLowerCase() === 'items');
+    const detailName = partsName || itemsName || wb.SheetNames[1];
+    const monthly = XLSX.utils.sheet_to_json(wb.Sheets[monthlyName], { defval: "", raw: false, dateNF: "yyyy-mm" });
+    const items = detailName ? XLSX.utils.sheet_to_json(wb.Sheets[detailName], { defval: "" }) : [];
+    return { monthly, items };
+  }
+
+  document.getElementById("fileInput").addEventListener("change", async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    elFileName.textContent = file.name;
+    elStatus.textContent = "Loading…";
+    try{
+      const { monthly, items } = await readExcelFile(file);
+      updateReport(monthly, items, { sourceName: file.name });
+    }catch(err){
+      console.error(err);
+      elStatus.innerHTML = `<span style="color:#b91c1c"><b>Error:</b> ${err.message || err}</span>`;
+    }
+  });
+
+  // ---- Built-in sample data ----
+  const SAMPLE_MONTHLY = [
+    {Month:"2025-01",Category:"ASRS",TotalQty:120,FulfilledQty:108},
+    {Month:"2025-01",Category:"Conveyor",TotalQty:140,FulfilledQty:131},
+    {Month:"2025-01",Category:"Utility",TotalQty:95,FulfilledQty:88},
+    {Month:"2025-01",Category:"Electrical",TotalQty:160,FulfilledQty:152},
+    {Month:"2025-02",Category:"ASRS",TotalQty:110,FulfilledQty:97},
+    {Month:"2025-02",Category:"Conveyor",TotalQty:150,FulfilledQty:139},
+    {Month:"2025-02",Category:"Utility",TotalQty:100,FulfilledQty:84},
+    {Month:"2025-02",Category:"Electrical",TotalQty:155,FulfilledQty:140},
+    {Month:"2025-03",Category:"ASRS",TotalQty:130,FulfilledQty:118},
+    {Month:"2025-03",Category:"Conveyor",TotalQty:135,FulfilledQty:120},
+    {Month:"2025-03",Category:"Utility",TotalQty:105,FulfilledQty:92},
+    {Month:"2025-03",Category:"Electrical",TotalQty:145,FulfilledQty:139},
+    {Month:"2025-04",Category:"ASRS",TotalQty:125,FulfilledQty:111},
+    {Month:"2025-04",Category:"Conveyor",TotalQty:142,FulfilledQty:129},
+    {Month:"2025-04",Category:"Utility",TotalQty:98,FulfilledQty:90},
+    {Month:"2025-04",Category:"Electrical",TotalQty:150,FulfilledQty:141},
+    {Month:"2025-05",Category:"ASRS",TotalQty:118,FulfilledQty:105},
+    {Month:"2025-05",Category:"Conveyor",TotalQty:148,FulfilledQty:132},
+    {Month:"2025-05",Category:"Utility",TotalQty:101,FulfilledQty:93},
+    {Month:"2025-05",Category:"Electrical",TotalQty:162,FulfilledQty:154},
+    {Month:"2025-06",Category:"ASRS",TotalQty:122,FulfilledQty:112},
+    {Month:"2025-06",Category:"Conveyor",TotalQty:151,FulfilledQty:140},
+    {Month:"2025-06",Category:"Utility",TotalQty:96,FulfilledQty:82},
+    {Month:"2025-06",Category:"Electrical",TotalQty:158,FulfilledQty:149},
+    {Month:"2025-07",Category:"ASRS",TotalQty:115,FulfilledQty:104},
+    {Month:"2025-07",Category:"Conveyor",TotalQty:160,FulfilledQty:149},
+    {Month:"2025-07",Category:"Utility",TotalQty:102,FulfilledQty:89},
+    {Month:"2025-07",Category:"Electrical",TotalQty:150,FulfilledQty:144},
+    {Month:"2025-08",Category:"ASRS",TotalQty:128,FulfilledQty:116},
+    {Month:"2025-08",Category:"Conveyor",TotalQty:145,FulfilledQty:128},
+    {Month:"2025-08",Category:"Utility",TotalQty:99,FulfilledQty:88},
+    {Month:"2025-08",Category:"Electrical",TotalQty:165,FulfilledQty:156},
+    {Month:"2025-09",Category:"ASRS",TotalQty:132,FulfilledQty:120},
+    {Month:"2025-09",Category:"Conveyor",TotalQty:138,FulfilledQty:125},
+    {Month:"2025-09",Category:"Utility",TotalQty:104,FulfilledQty:91},
+    {Month:"2025-09",Category:"Electrical",TotalQty:155,FulfilledQty:148},
+    {Month:"2025-10",Category:"ASRS",TotalQty:120,FulfilledQty:109},
+    {Month:"2025-10",Category:"Conveyor",TotalQty:152,FulfilledQty:139},
+    {Month:"2025-10",Category:"Utility",TotalQty:97,FulfilledQty:86},
+    {Month:"2025-10",Category:"Electrical",TotalQty:160,FulfilledQty:152},
+    {Month:"2025-11",Category:"ASRS",TotalQty:118,FulfilledQty:106},
+    {Month:"2025-11",Category:"Conveyor",TotalQty:147,FulfilledQty:133},
+    {Month:"2025-11",Category:"Utility",TotalQty:103,FulfilledQty:95},
+    {Month:"2025-11",Category:"Electrical",TotalQty:150,FulfilledQty:144},
+    {Month:"2025-12",Category:"ASRS",TotalQty:140,FulfilledQty:128},
+    {Month:"2025-12",Category:"Conveyor",TotalQty:155,FulfilledQty:143},
+    {Month:"2025-12",Category:"Utility",TotalQty:108,FulfilledQty:96},
+    {Month:"2025-12",Category:"Electrical",TotalQty:170,FulfilledQty:162},
+  ];
+
+  const SAMPLE_ITEMS = [
+    {EQUIPMENT:"ASRS", "Hierarchy-1":"Automation", "Hierarchy-2":"Storage", "Hierarchy-3":"Shuttle", "Hierarchy-4":"Motor", 설치설비:"ASRS Shuttle #1", 설치갯수:4, 현재재고:8, 안전재고:20, "보관 위치":"WH-A1", Supplier:"Daifuku Korea", 제조사:"SEW", "Order number":"PO-260301"},
+    {EQUIPMENT:"ASRS", "Hierarchy-1":"Automation", "Hierarchy-2":"Storage", "Hierarchy-3":"Lift", "Hierarchy-4":"Sensor", 설치설비:"ASRS Lift #2", 설치갯수:2, 현재재고:5, 안전재고:10, "보관 위치":"WH-A2", Supplier:"Daifuku Korea", 제조사:"SICK", "Order number":"PO-260302"},
+    {EQUIPMENT:"Conveyor", "Hierarchy-1":"Material Flow", "Hierarchy-2":"Transport", "Hierarchy-3":"Belt Conveyor", "Hierarchy-4":"Roller", 설치설비:"Main Conveyor Line A", 설치갯수:12, 현재재고:5, 안전재고:15, "보관 위치":"WH-B1", Supplier:"Interroll", 제조사:"Interroll", "Order number":"PO-260303"},
+    {EQUIPMENT:"Conveyor", "Hierarchy-1":"Material Flow", "Hierarchy-2":"Sorter", "Hierarchy-3":"Diverter", "Hierarchy-4":"Actuator", 설치설비:"Sorter Zone 3", 설치갯수:6, 현재재고:3, 안전재고:8, "보관 위치":"WH-B2", Supplier:"Honeywell", 제조사:"Festo", "Order number":"PO-260304"},
+    {EQUIPMENT:"Utility", "Hierarchy-1":"Facility", "Hierarchy-2":"HVAC", "Hierarchy-3":"AHU", "Hierarchy-4":"Filter", 설치설비:"AHU-01", 설치갯수:3, 현재재고:12, 안전재고:10, "보관 위치":"WH-C1", Supplier:"Samsung HVAC", 제조사:"AAF", "Order number":"PO-260305"},
+    {EQUIPMENT:"Utility", "Hierarchy-1":"Facility", "Hierarchy-2":"Air Compressor", "Hierarchy-3":"Dryer", "Hierarchy-4":"Valve", 설치설비:"Air Dryer #1", 설치갯수:2, 현재재고:2, 안전재고:6, "보관 위치":"WH-C2", Supplier:"Atlas Copco", 제조사:"SMC", "Order number":"PO-260306"},
+    {EQUIPMENT:"Electrical", "Hierarchy-1":"Facility", "Hierarchy-2":"Power", "Hierarchy-3":"UPS", "Hierarchy-4":"Battery", 설치설비:"UPS Room #1", 설치갯수:1, 현재재고:18, 안전재고:25, "보관 위치":"WH-D1", Supplier:"LS Electric", 제조사:"Yuasa", "Order number":"PO-260307"},
+    {EQUIPMENT:"Electrical", "Hierarchy-1":"Facility", "Hierarchy-2":"Control", "Hierarchy-3":"Panel", "Hierarchy-4":"MCB", 설치설비:"MCC Panel #4", 설치갯수:5, 현재재고:30, 안전재고:20, "보관 위치":"WH-D2", Supplier:"Schneider", 제조사:"Schneider", "Order number":"PO-260308"},
+  ];
+
+  document.getElementById("btnLoadSample").addEventListener("click", () => {
+    try{
+      updateReport(SAMPLE_MONTHLY, SAMPLE_ITEMS, { sourceName: "Built-in sample" });
+      elFileName.textContent = "";
+    }catch(err){
+      elStatus.innerHTML = `<span style="color:#b91c1c"><b>Error:</b> ${err.message || err}</span>`;
+    }
+  });
+
+  // Auto-load sample on first open
+  // btnLoadSample auto-click 제거됨 → autoLoadExcel()로 대체
+// ================================================================
+// AUTO-LOAD: GitHub 저장소의 Excel 파일 자동 불러오기
+// ================================================================
+async function autoLoadExcel() {
+  var container = document.getElementById('loadStatus');
+  var icon = document.getElementById('loadStatusIcon');
+  var text = document.getElementById('loadStatusText');
+  var retryBtn = document.getElementById('retryBtn');
+  var manualBtn = document.getElementById('manualBtn');
+
+  container.style.display = 'flex';
+  container.style.background = '#e8f0fe';
+  container.style.color = '#1a73e8';
+  container.style.border = '1px solid #d2e3fc';
+  icon.textContent = '⏳';
+  text.textContent = '📡 Excel 데이터를 불러오는 중...';
+  retryBtn.style.display = 'none';
+  manualBtn.style.display = 'none';
+
+  try {
+    var response = await fetch('./spare_data.xlsx');
+    if (!response.ok) throw new Error('HTTP 오류: ' + response.status);
+
+    var ab = await response.arrayBuffer();
+    if (ab.byteLength < 100) throw new Error('파일 크기가 너무 작습니다.');
+
+    var wb = XLSX.read(ab, { type: 'array', cellDates: true });
+
+    // readExcelFile 로직 재현: monthly 시트와 parts/items 시트 찾기
+    var monthlyName = wb.SheetNames.find(function(n){ return /month/i.test(n); });
+    var itemsName   = wb.SheetNames.find(function(n){ return /part|item/i.test(n); });
+
+    if (!monthlyName) throw new Error('monthly 시트를 찾을 수 없습니다. (시트: ' + wb.SheetNames.join(', ') + ')');
+    if (!itemsName)   throw new Error('parts/items 시트를 찾을 수 없습니다. (시트: ' + wb.SheetNames.join(', ') + ')');
+
+    var monthly = XLSX.utils.sheet_to_json(wb.Sheets[monthlyName], { defval: '' });
+    var items   = XLSX.utils.sheet_to_json(wb.Sheets[itemsName],   { defval: '' });
+
+    updateReport(monthly, items, { sourceName: 'spare_data.xlsx (GitHub 자동 로드)' });
+
+    // 파일 상태 표시 업데이트
+    var st = document.getElementById('status');
+    if (st) {
+      st.textContent = '✅ spare_data.xlsx 자동 로드 완료';
+      st.className = 'ok';
+    }
+
+    container.style.background = '#e6f4ea';
+    container.style.color = '#1e8e3e';
+    container.style.border = '1px solid #ceead6';
+    icon.textContent = '✅';
+    text.textContent = '데이터를 성공적으로 불러왔습니다! (시트: ' + wb.SheetNames.join(', ') + ')';
+    setTimeout(function(){ container.style.display = 'none'; }, 4000);
+
+  } catch (err) {
+    console.error('Auto-load failed:', err);
+    container.style.background = '#fce8e6';
+    container.style.color = '#d93025';
+    container.style.border = '1px solid #f5c6cb';
+    icon.textContent = '⚠️';
+    text.textContent = '데이터를 불러오지 못했습니다. ' + err.message + ' — 수동으로 업로드해 주세요.';
+    retryBtn.style.display = 'inline-block';
+    manualBtn.style.display = 'inline-block';
+  }
+}
+
+// 페이지 로드 시 자동 실행
+document.addEventListener('DOMContentLoaded', function() {
+  autoLoadExcel();
+});
+
+</script>
+</body>
+</html>

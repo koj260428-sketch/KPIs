@@ -1,0 +1,929 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Facility KPIs</title>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <style>
+    :root{
+      --bg:#ffffff;
+      --fg:#111827;
+      --muted:#6b7280;
+      --border:#111827;
+      --card:#ffffff;
+      --accent:#2563eb;
+      --grid-gap:12px;
+
+      /* Panel heights */
+      --h-header: 110px;
+      --h-overall: 420px;
+      --h-dt: 455px;
+      --h-dtd: 455px;
+      --h-issues: 260px;
+      --h-remark: 180px;
+
+      /* Chart tiles */
+      --chart-tile-h: 320px;
+      --chart-canvas-max: 285px;
+
+      /* colors */
+      --hi-bg: rgba(245, 158, 11, 0.26);
+      --hi-border: rgba(245, 158, 11, 0.65);
+      --target-bg: rgba(243, 244, 246, 1);
+
+      /* borders */
+      --thin: 1.2px;
+
+      /* selector */
+      --ctl-bg:#fff;
+    }
+
+    *{box-sizing:border-box;}
+    body{margin:0; padding:16px; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, "Noto Sans KR", sans-serif; background:var(--bg); color:var(--fg);}    
+    .wrap{max-width:1600px; margin:0 auto;}
+    .grid{display:grid; grid-template-columns: repeat(12, 1fr); gap: var(--grid-gap); align-items:stretch;}
+    .card{background:var(--card); border:3px solid var(--border); border-radius:10px; padding:12px; min-height:110px;}
+
+    #card-header{height:var(--h-header); overflow:hidden;}
+    #card-overall{height:auto; overflow:visible; padding:8px 10px;}
+    #card-dt{height:auto; overflow:visible; padding:10px 10px 8px;}
+    #card-dtd{height:var(--h-dtd); overflow:hidden; padding:10px 10px 8px;}
+
+    /* keep fixed-height scroll for Major/Open only */
+    #card-major{height:auto; overflow:visible;}
+    #card-open{height:auto; overflow:visible;}
+
+    /* Improvement: responsive height (no internal vertical scroll) */
+    #card-improve{height:auto; overflow:visible;}
+
+    #card-remark{height:var(--h-remark); overflow:auto;}
+
+    .card h2{margin:0 0 6px 0;}
+
+    .titlebar{display:flex; gap:12px; align-items:flex-end; justify-content:space-between; flex-wrap:wrap;}
+    .title{font-size:28px; font-weight:800; letter-spacing:-0.02em;}
+    .pill{display:inline-flex; align-items:center; gap:8px; border:2px solid var(--border); padding:8px 10px; border-radius:999px; font-weight:700; background:#fff;}
+
+    #card-header,#card-overall,#card-dt,#card-dtd,#card-major,#card-open,#card-improve,#card-remark{grid-column:1 / span 12;}
+
+    table{width:100%; border-collapse:collapse;}
+    th,td{border:var(--thin) solid #111827; padding:6px 8px; font-size:13px;}
+        /* ✅ Improve table: keep Status on one line */
+    #improveTable td:nth-child(6), #improveTable th:nth-child(6){white-space:nowrap;}
+
+/* ✅ Major issue table: preserve Excel line breaks in Problem */
+#majorTable td:nth-child(3), #majorTable th:nth-child(3){white-space:pre-wrap; word-break:break-word;}
+
+/* ✅ Major issue table: preserve Excel line breaks in Cause */
+#majorTable td:nth-child(4), #majorTable th:nth-child(4){white-space:pre-wrap; word-break:break-word;}
+
+/* ✅ Major issue table: preserve Excel line breaks in Remark */
+#majorTable td:nth-child(6), #majorTable th:nth-child(6){white-space:pre-wrap; word-break:break-word;}
+th{background:#f3f4f6; font-weight:800; text-align:center; position:sticky; top:0; z-index:1;}
+    td{vertical-align:top;}
+    .center{text-align:center;}
+    .small{font-size:12px; color:var(--muted);}
+
+    .scroll-x{overflow:auto;}
+    /* ✅ Overall Table: card expands vertically (no inner vertical scroll) */
+    #card-overall .scroll-x{overflow-x:auto; overflow-y:visible;}
+    #card-improve .scroll-x{overflow-x:auto; overflow-y:visible;}
+
+    .mono{font-variant-numeric: tabular-nums; white-space:nowrap;}
+
+    /* ===== Overall Table: 모든 테두리 동일 굵기 + (요청) 셀 너비/패딩을 이전과 동일하게 복원 ===== */
+    #overallTable{
+      table-layout:fixed;
+      border:var(--thin) solid #111827; /* outer border thin */
+    }
+    /* restore compact cell padding/font exactly like earlier */
+    #overallTable th, #overallTable td{
+      border:var(--thin) solid #111827 !important;
+      padding:4px 6px;
+      font-size:15.3px;
+      line-height:1.22;
+    }
+    #overallTable th{padding:5px 6px;}
+
+    /* restore column widths */
+    #overallTable th:nth-child(1), #overallTable td:nth-child(1){width:160px;}
+    #overallTable th:nth-child(2), #overallTable td:nth-child(2){width:210px; font-weight:900;}
+    #overallTable th:nth-child(n+3), #overallTable td:nth-child(n+3){width:78px;}
+
+    /* ensure any previous thick-border classes remain thin */
+    .blkTop{border-top:var(--thin) solid #111827 !important;}
+    .blkBottom{border-bottom:var(--thin) solid #111827 !important;}
+    .secBottom{border-bottom:var(--thin) solid #111827 !important;}
+
+    .targetCell{background: var(--target-bg);} 
+    .hiCell{background: var(--hi-bg) !important; outline: 1px solid var(--hi-border); outline-offset:-1px;}
+
+    /* Charts grid */
+    .charts{
+      display:grid;
+      grid-template-columns: repeat(auto-fit, minmax(420px, 1fr));
+      gap: 10px;
+      height: calc(100% - 54px);
+      overflow:auto;
+      padding: 4px 2px;
+      grid-auto-rows: var(--chart-tile-h);
+      align-content:start;
+      justify-items: stretch;
+    }
+        /* ✅ Downtime data chart: auto height to minimize bottom whitespace */
+    #card-dt .charts{height:auto; overflow:visible;}
+.chart-card{border:2px solid #111827; border-radius:10px; padding:8px; height:var(--chart-tile-h); display:flex; flex-direction:column;}
+    .chart-title{font-weight:900; margin:0 0 4px 0;}
+    canvas{width:100%; height:100%;}
+    .chart-card canvas{flex:1 1 auto; max-height:var(--chart-canvas-max); height:auto !important;}
+
+    /* Major issue selector */
+    .major-head{display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap;}
+    .major-controls{display:flex; align-items:center; gap:8px; flex-wrap:wrap;}
+    .major-select{border:2px solid var(--border); border-radius:10px; padding:6px 10px; font-weight:800; background:var(--ctl-bg);}    
+    
+    /* ✅ Remark dropdown: show full text (prevent truncation) */
+    #remarkMonthSelect{min-width:140px; width:140px; max-width:none;}
+.major-badge{border:2px solid var(--border); border-radius:999px; padding:6px 10px; font-weight:800; background:var(--ctl-bg);}  
+
+    @media (max-width: 1100px){.charts{grid-template-columns: 1fr;}}
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <div class="grid">
+
+    <!-- Header -->
+    <section class="card" id="card-header">
+      <div class="titlebar">
+        <div>
+          <div class="title" id="reportTitle">Facility KPIs_FY##</div>
+        </div>
+        <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+          <label class="pill" title="Load data file">
+            <span>📁 Load data file</span>
+            <input id="fileInput" type="file" accept=".xlsx,.xls" />
+          </label>
+          <span class="pill"><span>FY</span><span id="fyBadge">##</span></span>
+          <span class="pill"><span>FY Range</span><span id="fyRangeBadge">-</span></span>
+        </div>
+      </div>
+<!-- Auto-load status indicator -->
+      <div id="loadStatus" style="display:none; margin-top:8px; padding:8px 14px; border-radius:8px; font-size:13px; align-items:center; gap:8px; flex-wrap:wrap;">
+        <span id="loadStatusIcon"></span>
+        <span id="loadStatusText"></span>
+        <button id="retryBtn" onclick="autoLoadExcel()" style="display:none; margin-left:10px; padding:4px 12px; border:2px solid var(--border); background:#fff; border-radius:8px; cursor:pointer; font-size:12px; font-weight:700;">🔄 다시 시도</button>
+        <button id="manualBtn" onclick="document.getElementById('fileInput').click()" style="display:none; margin-left:6px; padding:4px 12px; border:2px solid var(--border); background:#fff; border-radius:8px; cursor:pointer; font-size:12px; font-weight:700;">📁 수동 업로드</button>
+      </div>
+    </section>
+
+    <section class="card" id="card-overall">
+      <h2>Downtime% & MTTR: Target / Actual</h2>
+      
+      <div class="scroll-x" style="margin-top:6px;">
+        <table id="overallTable"><thead></thead><tbody></tbody></table>
+      </div>
+      <div class="small" id="overallMsg" style="margin-top:6px;"></div>
+    </section>
+
+    <section class="card" id="card-dt">
+      <h2>Downtime data chart (Actual vs Target)</h2>
+      <div class="charts" id="downtimeCharts"></div>
+    </section>
+
+    <section class="card" id="card-dtd">
+      <h2>Downtime detail data chart (Stacked: Jam / Hardware / System / Access)</h2>
+      <div class="charts" id="downtimeDetailCharts"></div>
+    </section>
+
+    <section class="card" id="card-major">
+      <div class="major-head">
+        <h2 style="margin:0;">Major issue list table</h2>
+        <div class="major-controls">
+          <span class="small" style="font-weight:800;">Month</span>
+          <select id="majorMonthSelect" class="major-select"></select>
+          <span id="majorCount" class="major-badge">0</span>
+        </div>
+      </div>
+      <div class="scroll-x" style="margin-top:10px;"><table id="majorTable"></table></div>
+      <div class="small" id="majorMsg" style="margin-top:6px;"></div>
+    </section>
+
+    <section class="card" id="card-open">
+      <div class="major-head">
+        <h2 style="margin:0;">Open issue list table</h2>
+        <div class="major-controls">
+          <span class="small" style="font-weight:800;">Status</span>
+          <label class="pill" style="padding:6px 10px; border-radius:10px;">
+            <input type="checkbox" id="openStatusInProgress" checked style="transform:translateY(1px);" />
+            <span>In progress</span>
+          </label>
+          <label class="pill" style="padding:6px 10px; border-radius:10px;">
+            <input type="checkbox" id="openStatusCompleted" checked style="transform:translateY(1px);" />
+            <span>Completed</span>
+          </label>
+          <span id="openCount" class="major-badge">0</span>
+        </div>
+      </div>
+      <div class="scroll-x" style="margin-top:10px;"><table id="openTable"></table></div>
+    </section>
+
+    <section class="card" id="card-improve">
+      <div class="major-head">
+        <h2 style="margin:0;">Improvement item list table</h2>
+        <div class="major-controls">
+          <span class="small" style="font-weight:800;">Status</span>
+          <label class="pill" style="padding:6px 10px; border-radius:10px;">
+            <input type="checkbox" id="improveStatusInProgress" checked style="transform:translateY(1px);" />
+            <span>In progress</span>
+          </label>
+          <label class="pill" style="padding:6px 10px; border-radius:10px;">
+            <input type="checkbox" id="improveStatusCompleted" checked style="transform:translateY(1px);" />
+            <span>Completed</span>
+          </label>
+          <span id="improveCount" class="major-badge">0</span>
+        </div>
+      </div>
+      <div class="scroll-x" style="margin-top:10px;"><table id="improveTable"></table></div>
+    </section>
+
+    <section class="card" id="card-remark">
+      <div class="major-head" style="margin-bottom:6px;">
+        <h2 style="margin:0;">Remark</h2>
+        <div class="major-controls">
+          <span class="small" style="font-weight:800;">YYYY-MMM</span>
+          <select id="remarkMonthSelect" class="major-select"></select>
+          <span id="remarkCount" class="major-badge">0</span>
+        </div>
+      </div>
+      <div id="remarkBox" style="white-space:pre-wrap; font-weight:650; line-height:1.5;">엑셀을 업로드하면 Remarks 시트의 내용을 표시합니다.</div>
+    </section>
+
+  </div>
+</div>
+
+<script>
+/* 기능 로직은 바로 전 버전과 동일합니다. (Overall Table 스타일만 조정) */
+const $ = (id)=>document.getElementById(id);
+const ALLOWED_CATEGORIES = ['ASRS_Shuttle','ASRS_Lift','Conveyor'];
+const fmtPct = (x)=> (x==null || isNaN(x)) ? '' : (x*100).toFixed(1)+'%';
+const fmtHr  = (x)=> (x==null || isNaN(x)) ? '' : (Number(x).toFixed(2));
+function toNum(v){
+  if(v===null || v===undefined) return NaN;
+  if(typeof v === 'string' && v.trim()==='') return NaN;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : NaN;
+}
+const MON = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+function toMonthLabel(ym){
+  const y = ym.slice(0,4);
+  const m = parseInt(ym.slice(5,7),10);
+  if(!m || m<1 || m>12) return ym;
+  return `${y}-${MON[m-1]}`;
+}
+function sheetToJson(workbook, sheetName){
+  const ws = workbook.Sheets[sheetName];
+  if(!ws) return null;
+  return XLSX.utils.sheet_to_json(ws, {defval:""});
+}
+function normFY(val){
+  if(val==null || val==="") return null;
+  const n = Number(val);
+  if(!isNaN(n)){
+    if(n>=1000) return String(n).slice(-2);
+    if(n<100) return String(n).padStart(2,'0');
+    return String(n).slice(-2);
+  }
+  const m = String(val).match(/(\d{2})(?!.*\d)/);
+  return m ? m[1] : null;
+}
+function parseYM(s){
+  const y = Number(String(s).slice(0,4));
+  const m = Number(String(s).slice(5,7));
+  if(!y || !m) return null;
+  return {y,m};
+}
+function ymToString(y,m){
+  return `${y}-${String(m).padStart(2,'0')}`;
+}
+function buildMonthRange(startYM, endYM){
+  const a=parseYM(startYM); const b=parseYM(endYM);
+  if(!a || !b) return null;
+  let y=a.y, m=a.m;
+  const out=[];
+  for(let i=0;i<36;i++){
+    out.push(ymToString(y,m));
+    if(y===b.y && m===b.m) break;
+    m += 1;
+    if(m===13){m=1; y+=1;}
+  }
+  return out;
+}
+function mean(arr){
+  const v = arr.filter(x=>x!=null && !isNaN(x));
+  if(!v.length) return null;
+  return v.reduce((a,b)=>a+b,0)/v.length;
+}
+function lastIndexWithValue(arr){
+  for(let i=arr.length-1;i>=0;i--){
+    const v=arr[i];
+    if(v!=null && !isNaN(v)) return i;
+  }
+  return -1;
+}
+function meanUpTo(arr, lastIdx){
+  if(lastIdx < 0) return null;
+  return mean(arr.slice(0, lastIdx+1));
+}
+function buildTable(el, rows, headerOrder=null){
+  if(!rows || rows.length===0){ el.innerHTML = '<tr><th>(no data)</th></tr>'; return; }
+  const headers = headerOrder && headerOrder.length ? headerOrder : Object.keys(rows[0]);
+  const thead = '<thead><tr>'+headers.map(h=>`<th>${h}</th>`).join('')+'</tr></thead>';
+  const tbody = '<tbody>' + rows.map(r=>{
+    return '<tr>'+headers.map(h=>`<td>${(r[h]==null)?'':String(r[h])}</td>`).join('')+'</tr>';
+  }).join('') + '</tbody>';
+  el.innerHTML = thead + tbody;
+}
+function normalizeMonth(val){
+  if(val==null || val==='') return '';
+  if(typeof val === 'number' && isFinite(val)){
+    const d = XLSX.SSF.parse_date_code(val);
+    if(d) return `${d.y}-${String(d.m).padStart(2,'0')}`;
+  }
+  const s = String(val).trim();
+  const m1 = s.match(/^(\d{4})-(\d{2})/);
+  if(m1) return `${m1[1]}-${m1[2]}`;
+  const m2 = s.match(/^(\d{4})-([A-Za-z]{3})/);
+  if(m2){
+    const mon = m2[2].toLowerCase();
+    const idx = ['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'].indexOf(mon);
+    if(idx>=0) return `${m2[1]}-${String(idx+1).padStart(2,'0')}`;
+  }
+  return s.slice(0,7);
+}
+
+// Charts
+let chartRefs=[];
+function destroyCharts(){ chartRefs.forEach(c=>{try{c.destroy();}catch(e){}}); chartRefs=[]; }
+const barValueLabelPlugin = {
+  id: 'barValueLabelPlugin',
+  afterDatasetsDraw(chart, args, pluginOptions){
+    const {ctx} = chart;
+    const datasetIndex = pluginOptions?.datasetIndex ?? 0;
+    const meta = chart.getDatasetMeta(datasetIndex);
+    if(!meta || meta.hidden) return;
+    const ds = chart.data.datasets[datasetIndex];
+    if(!ds || ds.type !== 'bar') return;
+    ctx.save();
+    ctx.font = (pluginOptions?.font ?? '11px system-ui, -apple-system, Segoe UI, Roboto, Arial');
+    ctx.fillStyle = pluginOptions?.color ?? '#111827';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'bottom';
+    meta.data.forEach((bar, i)=>{
+      const v = ds.data[i];
+      if(v==null || isNaN(v)) return;
+      const yPos = Math.max(bar.y - 3, chart.chartArea.top + 12);
+      ctx.fillText(fmtPct(v), bar.x, yPos);
+    });
+    ctx.restore();
+  }
+};
+const Y_MAX_BY_CAT = {'Conveyor':0.05,'ASRS_Shuttle':0.05,'ASRS_Lift':0.08};
+function yMaxFor(cat){ return Y_MAX_BY_CAT[cat] ?? 0.08; }
+function makeDowntimeTargetChart(canvas, labels, actualData, targetData, yMax){
+  return new Chart(canvas.getContext('2d'), {
+    data:{labels, datasets:[
+      {type:'bar', label:'Actual', data:actualData,
+       backgroundColor:'rgba(37,99,235,0.55)', borderColor:'rgba(37,99,235,1)', borderWidth:1.5,
+       barPercentage:0.85, categoryPercentage:0.8},
+      {type:'line', label:'Target', data:targetData,
+       borderColor:'rgba(220,38,38,1)', backgroundColor:'rgba(220,38,38,0.10)', borderWidth:2.5,
+       pointRadius:2, pointHoverRadius:3, tension:0.2}
+    ]},
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{
+        legend:{position:'bottom', labels:{boxWidth:12}},
+        tooltip:{callbacks:{label:(ctx)=>` ${ctx.dataset.label}: ${fmtPct(ctx.raw)}`}},
+        barValueLabelPlugin:{datasetIndex:0}
+      },
+      scales:{
+        y:{min:0, max:yMax,
+           ticks:{stepSize:0.01, callback:(v)=> (v*100).toFixed(0)+'%'},
+           grid:{color:'rgba(17,24,39,0.12)'}},
+        x:{grid:{display:false}, ticks:{maxRotation:45, minRotation:45}}
+      }
+    },
+    plugins:[barValueLabelPlugin]
+  });
+}
+function makeStackedBar(canvas, labels, datasets, yMax){
+  return new Chart(canvas.getContext('2d'), {
+    type:'bar',
+    data:{labels, datasets},
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{
+        legend:{position:'bottom', labels:{boxWidth:12}},
+        tooltip:{callbacks:{label:(ctx)=>` ${ctx.dataset.label}: ${fmtPct(ctx.raw)}`}}
+      },
+      scales:{
+        x:{stacked:true, grid:{display:false}},
+        y:{stacked:true, min:0, max:yMax,
+           ticks:{stepSize:0.01, callback:(v)=> (v*100).toFixed(0)+'%'},
+           grid:{color:'rgba(17,24,39,0.12)'}}
+      }
+    }
+  });
+}
+
+// Major month filter
+const state = { monthsFull: [], monthLabels: [], majorAll: [] };
+function populateMajorMonthSelect(){
+  const sel = $('majorMonthSelect');
+  sel.innerHTML = '';
+  const optAll = document.createElement('option');
+  optAll.value = '__ALL__';
+  optAll.textContent = 'All';
+  sel.appendChild(optAll);
+  state.monthsFull.forEach((m, idx)=>{
+    const opt = document.createElement('option');
+    opt.value = m;
+    opt.textContent = state.monthLabels[idx];
+    sel.appendChild(opt);
+  });
+  sel.value = state.monthsFull.length ? state.monthsFull[state.monthsFull.length-1] : '__ALL__';
+}
+function renderMajorTableByMonth(){
+  const sel = $('majorMonthSelect');
+  const key = sel.value;
+  let filtered = state.majorAll;
+  if(key !== '__ALL__') filtered = state.majorAll.filter(r => normalizeMonth(r.Month) === key);
+  const viewRows = filtered.map(r => ({
+    Equipment: r.Equipment ?? '',
+    Type: r.Type ?? '',
+    Problem: r.Problem ?? '',
+    Cause: r.Cause ?? '',
+    Downtime: r.Downtime ?? '',
+    Remark: r.Remark ?? ''
+  }));
+  buildTable($('majorTable'), viewRows, ['Equipment','Type','Problem','Cause','Downtime','Remark']);
+  $('majorCount').textContent = String(filtered.length);
+  $('majorMsg').textContent = (key === '__ALL__') ? `전체 ${filtered.length}건 표시` : `${toMonthLabel(key)}: ${filtered.length}건`;
+}
+
+// Open issues header mapping
+const OPEN_HEADERS = ['No','Equipment','Open issue','Action','Target date','Status','Remark'];
+function normalizeOpenIssues(rows){
+  return (rows||[]).map(r=>({
+    'No': r['No'] ?? r['NO'] ?? r['no'] ?? r['#'] ?? '',
+    'Equipment': r['Equipment'] ?? r['Equip'] ?? r['EQ'] ?? '',
+    'Open issue': r['Open issue'] ?? r['Open Issue'] ?? r['OpenIssue'] ?? r['Issue'] ?? r['Problem'] ?? '',
+    'Action': r['Action'] ?? r['Countermeasure'] ?? r['Plan'] ?? '',
+    'Target date': r['Target date'] ?? r['Target Date'] ?? r['Target'] ?? r['Due date'] ?? r['Due Date'] ?? '',
+    'Status': r['Status'] ?? r['Progress'] ?? '',
+    'Remark': r['Remark'] ?? r['Comments'] ?? r['Comment'] ?? ''
+  }));
+}
+
+
+
+// ===== Status filtering (Open / Improvement) =====
+function normStatus(v){
+  const s = (v==null? '' : String(v)).trim();
+  const low = s.toLowerCase();
+  if(!low) return 'in progress';
+  if(low.includes('complete') || low.includes('done') || low.includes('closed')) return 'completed';
+  if(low.includes('progress') || low.includes('ing')) return 'in progress';
+  return 'in progress';
+}
+
+function filterByStatus(rows, showInProgress, showCompleted){
+  return (rows||[]).filter(r=>{
+    const st = normStatus(r['Status'] ?? r.Status);
+    return (st === 'completed') ? !!showCompleted : !!showInProgress;
+  });
+}
+
+let openAllRows = [];
+let improveAllRows = [];
+
+function renderOpenFiltered(){
+  const a = $('openStatusInProgress')?.checked ?? true;
+  const b = $('openStatusCompleted')?.checked ?? true;
+  const filtered = filterByStatus(openAllRows, a, b);
+  buildTable($('openTable'), filtered, OPEN_HEADERS);
+  const el = $('openCount');
+  if(el) el.textContent = String(filtered.length);
+}
+
+function renderImproveFiltered(){
+  const a = $('improveStatusInProgress')?.checked ?? true;
+  const b = $('improveStatusCompleted')?.checked ?? true;
+  const filtered = filterByStatus(improveAllRows, a, b);
+  buildTable($('improveTable'), filtered, ['No.','Equipment','Improvement item','Action','Target date','Status','Remark']);
+  const el = $('improveCount');
+  if(el) el.textContent = String(filtered.length);
+  // dynamic width for Status column to prevent wrapping
+  applyDynamicColWidth('improveTable', ['No.','Equipment','Improvement item','Action','Target date','Status','Remark'], ['Status'], {minPx:100, maxPx:320});
+
+}
+
+// ===== Dynamic column width helper =====
+function applyDynamicColWidth(tableId, headers, colNames, options={}){
+  const table = document.getElementById(tableId);
+  if(!table) return;
+  const thead = table.querySelector('thead');
+  const tbody = table.querySelector('tbody');
+  if(!thead || !tbody) return;
+
+  const charPx = options.charPx ?? 7.6;  // approximate px per character
+  const padPx  = options.padPx  ?? 24;   // left+right padding
+  const minPx  = options.minPx  ?? 90;
+  const maxPx  = options.maxPx  ?? 320;
+
+  colNames.forEach(name=>{
+    const idx = headers.indexOf(name);
+    if(idx < 0) return;
+    const colIndex = idx + 1; // nth-child is 1-based
+
+    let maxLen = name.length;
+    tbody.querySelectorAll(`tr td:nth-child(${colIndex})`).forEach(td=>{
+      const t = (td.textContent || '').trim();
+      if(t.length > maxLen) maxLen = t.length;
+      td.style.whiteSpace = 'nowrap';
+    });
+    thead.querySelectorAll(`tr th:nth-child(${colIndex})`).forEach(th=>{
+      th.style.whiteSpace = 'nowrap';
+    });
+
+    const w = Math.max(minPx, Math.min(maxPx, Math.round(maxLen * charPx + padPx)));
+    thead.querySelectorAll(`tr th:nth-child(${colIndex})`).forEach(th=>{ th.style.width = w + 'px'; });
+    tbody.querySelectorAll(`tr td:nth-child(${colIndex})`).forEach(td=>{ td.style.width = w + 'px'; });
+  });
+}
+
+function renderFromWorkbook(wb){
+  destroyCharts();
+
+  const meta = sheetToJson(wb,'Meta') || [];
+  const metaMap = {};
+  meta.forEach(r=>{ if(r.Key) metaMap[String(r.Key).trim()] = r.Value; });
+  const fy = normFY(metaMap['FY']);
+  $('fyBadge').textContent = fy || '##';
+  $('reportTitle').textContent = `Facility KPIs_FY${fy || '##'}`;
+
+  const fyStart = (metaMap['FYStart']||'').toString();
+  const fyEnd   = (metaMap['FYEnd']||'').toString();
+
+  const dtRaw = sheetToJson(wb,'Downtime') || [];
+  const mtRaw = sheetToJson(wb,'MTTR') || [];
+  const dtdRaw = sheetToJson(wb,'DowntimeDetail') || [];
+
+  const dtClean = dtRaw.filter(r=>r.Month && r.Category && ALLOWED_CATEGORIES.includes(String(r.Category)))
+    .map(r=>({Month:String(r.Month).slice(0,7), Category:String(r.Category), Actual:toNum(r.Actual ?? r.DowntimeRate), Target:toNum(r.Target ?? r.TargetDowntimeRate ?? r.TargetRate)}));
+  const mtClean = mtRaw.filter(r=>r.Month && r.Category && ALLOWED_CATEGORIES.includes(String(r.Category)))
+    .map(r=>({Month:String(r.Month).slice(0,7), Category:String(r.Category), Actual:toNum(r.Actual ?? r.MTTR), Target:toNum(r.Target ?? r.TargetMTTR)}));
+
+  const monthsData = [...new Set([...dtClean.map(r=>r.Month), ...mtClean.map(r=>r.Month)])].sort();
+  let monthsFull = (fyStart && fyEnd) ? buildMonthRange(fyStart, fyEnd) : null;
+  if(!monthsFull){
+    const first = monthsData.length ? monthsData[0] : '2025-06';
+    const a = parseYM(first) || {y:2025, m:6};
+    monthsFull=[];
+    let y=a.y, m=a.m;
+    for(let i=0;i<12;i++){ monthsFull.push(ymToString(y,m)); m++; if(m===13){m=1; y++;} }
+  }
+  const monthLabels = monthsFull.map(toMonthLabel);
+  $('fyRangeBadge').textContent = `${monthLabels[0]} ~ ${monthLabels[monthLabels.length-1]}`;
+  state.monthsFull = monthsFull;
+  state.monthLabels = monthLabels;
+
+  const cats = [...new Set([...dtClean.map(r=>r.Category), ...mtClean.map(r=>r.Category)])]
+    .filter(c=>ALLOWED_CATEGORIES.includes(c)).sort();
+
+  // Overall table
+  const headerLabels = ['Category','Data', ...monthLabels, 'YTD'];
+  $('overallTable').querySelector('thead').innerHTML = '<tr>'+headerLabels.map(h=>`<th>${h}</th>`).join('')+'</tr>';
+
+  let tbodyHtml='';
+  cats.forEach(c=>{
+    const dtByMonth = Object.fromEntries(monthsFull.map(m=>[m, dtClean.find(x=>x.Category===c && x.Month===m)]));
+    const mtByMonth = Object.fromEntries(monthsFull.map(m=>[m, mtClean.find(x=>x.Category===c && x.Month===m)]));
+
+    const buildCells = (byMonth, fmt)=> monthsFull.map(m=>{
+      const rec=byMonth[m];
+      const t = (rec && Number.isFinite(rec.Target)) ? rec.Target : null;
+      const a = (rec && Number.isFinite(rec.Actual)) ? rec.Actual : null;
+      const hi = (a!=null && t!=null && a>t);
+      return {t, a, hi, tv: (t==null?'':fmt(t)), av: (a==null?'':fmt(a))};
+    });
+
+    const dtCells = buildCells(dtByMonth, fmtPct);
+    const mtCells = buildCells(mtByMonth, fmtHr);
+    const dtLast = lastIndexWithValue(dtCells.map(x=>x.a));
+    const mtLast = lastIndexWithValue(mtCells.map(x=>x.a));
+
+    const ytdDtT = meanUpTo(dtCells.map(x=>x.t), dtLast);
+    const ytdDtA = meanUpTo(dtCells.map(x=>x.a), dtLast);
+    const ytdMtT = meanUpTo(mtCells.map(x=>x.t), mtLast);
+    const ytdMtA = meanUpTo(mtCells.map(x=>x.a), mtLast);
+
+    const ytdDtHi = (ytdDtA!=null && ytdDtT!=null && ytdDtA>ytdDtT);
+    const ytdMtHi = (ytdMtA!=null && ytdMtT!=null && ytdMtA>ytdMtT);
+
+    const tdTarget = (v, extra='')=>`<td class="center mono targetCell ${extra}">${v}</td>`;
+    const tdActual = (v, hi, extra='')=>`<td class="center mono ${hi ? 'hiCell' : ''} ${extra}">${v}</td>`;
+
+    const catTd = `<td class="mono blkTop blkBottom" rowspan="4" style="vertical-align:middle; font-weight:900;">${c}</td>`;
+
+    tbodyHtml += '<tr>' + catTd
+      + '<td class="center blkTop" style="font-weight:900;">Downtime% Target</td>'
+      + dtCells.map(x=>tdTarget(x.tv,'blkTop')).join('')
+      + tdTarget(ytdDtT==null?'':fmtPct(ytdDtT),'blkTop')
+      + '</tr>';
+
+    tbodyHtml += '<tr>'
+      + '<td class="center secBottom" style="font-weight:900;">Downtime% Actual</td>'
+      + dtCells.map(x=>tdActual(x.av, x.hi,'secBottom')).join('')
+      + tdActual(ytdDtA==null?'':fmtPct(ytdDtA), ytdDtHi,'secBottom')
+      + '</tr>';
+
+    tbodyHtml += '<tr>'
+      + '<td class="center" style="font-weight:900;">MTTR(hr) Target</td>'
+      + mtCells.map(x=>tdTarget(x.tv)).join('')
+      + tdTarget(ytdMtT==null?'':fmtHr(ytdMtT))
+      + '</tr>';
+
+    tbodyHtml += '<tr>'
+      + '<td class="center blkBottom" style="font-weight:900;">MTTR(hr) Actual</td>'
+      + mtCells.map(x=>tdActual(x.av, x.hi,'blkBottom')).join('')
+      + tdActual(ytdMtA==null?'':fmtHr(ytdMtA), ytdMtHi,'blkBottom')
+      + '</tr>';
+  });
+  $('overallTable').querySelector('tbody').innerHTML = tbodyHtml;
+  $('overallMsg').textContent = `FY: ${monthLabels[0]} ~ ${monthLabels[monthLabels.length-1]} / YTD=입력 월까지 평균`;
+
+  // Downtime chart with YTD
+  const monthLabelsPlus = [...monthLabels, 'YTD'];
+  const dtWrap = $('downtimeCharts');
+  dtWrap.innerHTML='';
+  cats.forEach(cat=>{
+    const id=`dt_${cat.replace(/\W+/g,'_')}`;
+    const box=document.createElement('div');
+    box.className='chart-card';
+    box.innerHTML = `<div class="chart-title">${cat}</div><canvas id="${id}"></canvas>`;
+    dtWrap.appendChild(box);
+    const actualBase = monthsFull.map(m=>{const rec=dtClean.find(x=>x.Category===cat && x.Month===m); return (rec && Number.isFinite(rec.Actual))?rec.Actual:null;});
+    const targetBase = monthsFull.map(m=>{const rec=dtClean.find(x=>x.Category===cat && x.Month===m); return (rec && Number.isFinite(rec.Target))?rec.Target:null;});
+    const lastA = lastIndexWithValue(actualBase);
+    const ytdA = meanUpTo(actualBase, lastA);
+    const ytdT = meanUpTo(targetBase, lastA);
+    chartRefs.push(makeDowntimeTargetChart($(id), monthLabelsPlus, [...actualBase, ytdA], [...targetBase, ytdT], yMaxFor(cat)));
+  });
+
+  // Downtime detail
+  const dtdClean = dtdRaw.filter(r=>r.Month && r.Category && r.IssueType && ALLOWED_CATEGORIES.includes(String(r.Category)))
+    .map(r=>({Month:String(r.Month).slice(0,7), Category:String(r.Category), IssueType:String(r.IssueType), Rate:toNum(r.DowntimeRate)}));
+  const issueTypesBase=['Jam','Hardware','System'];
+  const issueTypesByCat = {
+    'ASRS_Shuttle': [...issueTypesBase, 'Access'],
+    'ASRS_Lift':    [...issueTypesBase, 'Access'],
+    'Conveyor':     issueTypesBase
+  };
+  function issueTypesFor(cat){ return issueTypesByCat[cat] || issueTypesBase; }
+const colors={Jam:'rgba(239,68,68,0.65)', Hardware:'rgba(245,158,11,0.65)', System:'rgba(16,185,129,0.65)', Access:'rgba(139,92,246,0.65)'};
+const dtdWrap = $('downtimeDetailCharts');
+  dtdWrap.innerHTML='';
+  cats.forEach(cat=>{
+    const id=`dtd_${cat.replace(/\W+/g,'_')}`;
+    const box=document.createElement('div');
+    box.className='chart-card';
+    box.innerHTML = `<div class="chart-title">${cat}</div><canvas id="${id}"></canvas>`;
+    dtdWrap.appendChild(box);
+    const datasets = issueTypesFor(cat).map(it=>({
+      label:it,
+      data: monthsFull.map(m=>{const rec=dtdClean.find(x=>x.Category===cat && x.Month===m && x.IssueType===it); return (rec && Number.isFinite(rec.Rate))?rec.Rate:0;}),
+      backgroundColor: colors[it] || 'rgba(107,114,128,0.6)',
+      borderColor:'rgba(17,24,39,1)',
+      borderWidth:1
+    }));
+    chartRefs.push(makeStackedBar($(id), monthLabels, datasets, yMaxFor(cat)));
+  });
+
+  // Major issues
+  const majorRaw = sheetToJson(wb,'MajorIssues') || [];
+  state.majorAll = majorRaw.map(r=>({
+    Month: r.Month ?? r.month ?? r.YM ?? r.Date ?? '',
+    Equipment: r.Equipment ?? r.Equip ?? r.EquipmentName ?? '',
+    Type: r.Type ?? '',
+    Problem: r.Problem ?? '',
+    Cause: r.Cause ?? '',
+    Downtime: r.Downtime ?? '',
+    Remark: r.Remark ?? ''
+  }));
+  populateMajorMonthSelect();
+  renderMajorTableByMonth();
+  $('majorMonthSelect').onchange = renderMajorTableByMonth;
+
+  // Open issues (Status filter)
+  const openRaw = sheetToJson(wb,'OpenIssues') || [];
+  openAllRows = normalizeOpenIssues(openRaw);
+  const o1 = $('openStatusInProgress');
+  const o2 = $('openStatusCompleted');
+  if(o1) o1.onchange = renderOpenFiltered;
+  if(o2) o2.onchange = renderOpenFiltered;
+  renderOpenFiltered();
+
+  // Improvement items (Status filter)
+  improveAllRows = sheetToJson(wb,'ImprovementItems') || [];
+  const i1 = $('improveStatusInProgress');
+  const i2 = $('improveStatusCompleted');
+  if(i1) i1.onchange = renderImproveFiltered;
+  if(i2) i2.onchange = renderImproveFiltered;
+  renderImproveFiltered();
+
+  // ===== Remarks (A: YYYY-MM, B: Text) Filter (display: YYYY-MMM, e.g., YYYY-Dec) =====
+  const wsR = wb.Sheets['Remarks'];
+  const remarkRows = wsR ? XLSX.utils.sheet_to_json(wsR, {header: 1, defval: ''}) : [];
+  const MMM = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+  function normYYYYMM_Dash(v){
+    if(v==null) return '';
+    const s = String(v).trim();
+    if(!s) return '';
+    const m = s.match(/^(\d{4})[\.\-\/](\d{1,2})/);
+    if(m){
+      return `${m[1]}-${String(m[2]).padStart(2,'0')}`;
+    }
+    const m2 = s.match(/^(\d{4})(\d{2})$/);
+    if(m2){
+      return `${m2[1]}-${m2[2]}`;
+    }
+    return s.slice(0,7);
+  }
+
+  function ymToMMM(ym){
+    const m = String(ym).match(/^(\d{4})-(\d{2})$/);
+    if(!m) return ym;
+    const y = m[1];
+    const mm = parseInt(m[2],10);
+    if(mm>=1 && mm<=12) return `${y}-${MMM[mm-1]}`;
+    return ym;
+  }
+
+  // Data starts from A2/B2 -> skip first row
+  const remarkAll = remarkRows.slice(1)
+    .map(r => ({ ym: normYYYYMM_Dash(r[0]), text: (r[1] ?? '').toString() }))
+    .filter(x => (x.ym && x.ym.trim() !== '') || (x.text && x.text.trim() !== ''));
+
+  const ymSet = Array.from(new Set(remarkAll.map(x=>x.ym).filter(Boolean)));
+  ymSet.sort((a,b)=> b.localeCompare(a));
+
+  const remarkSel = $('remarkMonthSelect');
+  const remarkCount = $('remarkCount');
+
+  if(remarkSel){
+    remarkSel.innerHTML = '';
+    ymSet.forEach(ym => {
+      const opt = document.createElement('option');
+      opt.value = ym;
+      opt.textContent = ymToMMM(ym);
+      remarkSel.appendChild(opt);
+    });
+    remarkSel.value = ymSet.length ? ymSet[0] : '';
+  }
+
+  function renderRemarks(){
+    const key = remarkSel ? remarkSel.value : '';
+    const filtered = key ? remarkAll.filter(x => x.ym === key) : remarkAll;
+    const lines = filtered.map(x => (x.text ?? '').toString().trim()).filter(t=>t);
+    $('remarkBox').textContent = lines.length ? lines.join('\n') : '해당 월에 표시할 Remark가 없습니다.';
+    if(remarkCount) remarkCount.textContent = String(lines.length);
+  }
+
+  if(remarkSel){
+    remarkSel.onchange = renderRemarks;
+  }
+  renderRemarks();
+}
+
+$('fileInput').addEventListener('change', async (e)=>{
+  const file=e.target.files?.[0];
+  if(!file) return;
+  const buf=await file.arrayBuffer();
+  const wb=XLSX.read(buf,{type:'array'});
+  renderFromWorkbook(wb);
+});
+// ================================================================
+// AUTO-LOAD: Box 링크에서 Excel 파일 자동 불러오기
+// ================================================================
+var BOX_DIRECT_URL = 'https://nike.box.com/shared/static/nr91fjhdu93e7hk83t596ax7ce9j0d5g.xlsx';
+
+function showLoadStatus(type, message) {
+  var container = $('loadStatus');
+  var icon = $('loadStatusIcon');
+  var text = $('loadStatusText');
+  var retryBtn = $('retryBtn');
+  var manualBtn = $('manualBtn');
+  container.style.display = 'flex';
+  retryBtn.style.display = 'none';
+  manualBtn.style.display = 'none';
+  if (type === 'loading') {
+    container.style.background = '#e8f0fe';
+    container.style.color = '#1a73e8';
+    container.style.border = '1px solid #d2e3fc';
+    icon.textContent = '⏳';
+    text.textContent = message;
+  } else if (type === 'success') {
+    container.style.background = '#e6f4ea';
+    container.style.color = '#1e8e3e';
+    container.style.border = '1px solid #ceead6';
+    icon.textContent = '✅';
+    text.textContent = message;
+    setTimeout(function(){ container.style.display = 'none'; }, 4000);
+  } else if (type === 'error') {
+    container.style.background = '#fce8e6';
+    container.style.color = '#d93025';
+    container.style.border = '1px solid #f5c6cb';
+    icon.textContent = '⚠️';
+    text.textContent = message;
+    retryBtn.style.display = 'inline-block';
+    manualBtn.style.display = 'inline-block';
+  }
+}
+
+// ================================================================
+// AUTO-LOAD: 같은 저장소의 Excel 파일 자동 불러오기
+// ================================================================
+async function autoLoadExcel() {
+  var container = document.getElementById('loadStatus');
+  var icon = document.getElementById('loadStatusIcon');
+  var text = document.getElementById('loadStatusText');
+  var retryBtn = document.getElementById('retryBtn');
+  var manualBtn = document.getElementById('manualBtn');
+
+  // 로딩 상태 표시
+  container.style.display = 'flex';
+  container.style.background = '#e8f0fe';
+  container.style.color = '#1a73e8';
+  container.style.border = '1px solid #d2e3fc';
+  icon.textContent = '⏳';
+  text.textContent = '📡 Excel 데이터를 불러오는 중...';
+  retryBtn.style.display = 'none';
+  manualBtn.style.display = 'none';
+
+  try {
+    // ★ 같은 폴더의 data.xlsx를 상대경로로 fetch
+    var response = await fetch('./data.xlsx');
+
+    if (!response.ok) {
+      throw new Error('HTTP 오류: ' + response.status);
+    }
+
+    var arrayBuffer = await response.arrayBuffer();
+
+    if (arrayBuffer.byteLength < 100) {
+      throw new Error('파일 크기가 너무 작습니다.');
+    }
+
+    var wb = XLSX.read(new Uint8Array(arrayBuffer), { type: 'array' });
+
+    if (!wb.SheetNames || wb.SheetNames.length === 0) {
+      throw new Error('Excel 파일에 시트가 없습니다.');
+    }
+
+    // 기존 대시보드 렌더링 함수 호출
+    renderFromWorkbook(wb);
+
+    // 성공 표시
+    container.style.background = '#e6f4ea';
+    container.style.color = '#1e8e3e';
+    container.style.border = '1px solid #ceead6';
+    icon.textContent = '✅';
+    text.textContent = '데이터를 성공적으로 불러왔습니다! (시트: ' + wb.SheetNames.join(', ') + ')';
+    setTimeout(function(){ container.style.display = 'none'; }, 4000);
+
+  } catch (err) {
+    console.error('Auto-load failed:', err);
+
+    // 에러 표시
+    container.style.background = '#fce8e6';
+    container.style.color = '#d93025';
+    container.style.border = '1px solid #f5c6cb';
+    icon.textContent = '⚠️';
+    text.textContent = '데이터를 불러오지 못했습니다. ' + err.message;
+    retryBtn.style.display = 'inline-block';
+    manualBtn.style.display = 'inline-block';
+  }
+}
+
+// 페이지 로드 시 자동 실행
+document.addEventListener('DOMContentLoaded', function() {
+  autoLoadExcel();
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,770 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PM Monthly Dashboard - White Theme</title>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <style>
+    :root {
+      --bg: #f7fbfc;
+      --surface: #ffffff;
+      --surface-soft: #fbfdff;
+      --text: #0f172a;
+      --muted: #64748b;
+      --line: #bfe8ef;
+      --line-strong: #8dd7e6;
+      --plan: #8ecae6;
+      --actual: #4f9ded;
+      --completion: #ff8c42;
+      --accent: #4fc3d8;
+      --good: #14b8a6;
+      --warn: #f59e0b;
+      --bad: #ef4444;
+      --shadow: 0 8px 20px rgba(15, 23, 42, 0.06);
+      --radius-lg: 20px;
+      --radius-md: 14px;
+      --radius-sm: 10px;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: "Segoe UI", "Malgun Gothic", Arial, sans-serif;
+    }
+
+    .dashboard {
+      max-width: 1700px;
+      margin: 0 auto;
+      padding: 24px;
+    }
+
+    .top-bar {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: center;
+      gap: 14px;
+      margin-bottom: 20px;
+    }
+
+    .title-wrap h1 {
+      margin: 0 0 6px 0;
+      font-size: 34px;
+      font-weight: 800;
+      letter-spacing: -0.03em;
+      color: #1186a4;
+    }
+
+    .title-wrap p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 14px;
+      font-weight: 600;
+    }
+
+    .upload-panel {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 10px;
+      background: var(--surface);
+      border: 2px solid var(--line-strong);
+      border-radius: var(--radius-lg);
+      padding: 14px 16px;
+      box-shadow: var(--shadow);
+    }
+
+    .upload-panel input[type="file"] {
+      max-width: 280px;
+    }
+
+    .file-status {
+      font-size: 13px;
+      color: var(--muted);
+      font-weight: 700;
+    }
+
+    .equipment-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(540px, 1fr));
+      gap: 18px;
+    }
+
+    .equipment-card {
+      background: var(--surface);
+      border: 2px solid var(--line-strong);
+      border-radius: 24px;
+      box-shadow: var(--shadow);
+      padding: 18px;
+    }
+
+    .equipment-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 12px;
+      margin-bottom: 14px;
+      flex-wrap: wrap;
+    }
+
+    .equipment-title {
+      font-size: 28px;
+      font-weight: 800;
+      color: #1186a4;
+      margin-bottom: 4px;
+    }
+
+    .equipment-subtitle {
+      font-size: 12px;
+      color: var(--muted);
+      font-weight: 700;
+    }
+
+    .completion-badge {
+      border-radius: 999px;
+      padding: 8px 12px;
+      font-size: 13px;
+      font-weight: 800;
+      color: #fff;
+      min-width: 100px;
+      text-align: center;
+    }
+
+    .kpi-row {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+
+    .kpi-box {
+      background: var(--surface-soft);
+      border: 2px solid var(--line);
+      border-radius: var(--radius-md);
+      padding: 12px;
+      min-height: 118px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      text-align: center;
+    }
+
+    .kpi-box .label {
+      font-size: 12px;
+      font-weight: 800;
+      color: var(--muted);
+      margin-bottom: 8px;
+    }
+
+    .kpi-main {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      width: 100%;
+      align-items: center;
+    }
+
+    .kpi-main .ytd-label,
+    .kpi-main .sel-label {
+      font-size: 10px;
+      font-weight: 800;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    .kpi-main .ytd-value {
+      font-size: 28px;
+      font-weight: 800;
+      line-height: 1;
+    }
+
+    .kpi-main .sel-value {
+      font-size: 18px;
+      font-weight: 800;
+      line-height: 1;
+      color: #334155;
+    }
+
+    .divider {
+      width: 82%;
+      height: 1px;
+      background: var(--line);
+      margin: 2px 0 0 0;
+    }
+
+    .filters {
+      display: flex;
+      justify-content: flex-end;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 12px;
+      align-items: center;
+    }
+
+    .filters label {
+      font-size: 12px;
+      font-weight: 800;
+      color: var(--muted);
+    }
+
+    .filters select {
+      min-width: 108px;
+      padding: 7px 10px;
+      border-radius: var(--radius-sm);
+      border: 1.8px solid var(--line-strong);
+      background: #fff;
+      color: var(--text);
+      font-size: 12px;
+      font-weight: 700;
+      outline: none;
+    }
+
+    .filters select:focus {
+      box-shadow: 0 0 0 3px rgba(79, 195, 216, 0.15);
+      border-color: var(--accent);
+    }
+
+    .chart-panel {
+      border: 2px solid var(--line);
+      border-radius: var(--radius-md);
+      padding: 12px 12px 8px 12px;
+      background: linear-gradient(180deg, #ffffff 0%, #f8fdfe 100%);
+    }
+
+    .chart-panel-title {
+      font-size: 16px;
+      font-weight: 800;
+      text-align: center;
+      color: #ff8c42;
+      margin-bottom: 8px;
+    }
+
+    .empty-state {
+      grid-column: 1 / -1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 360px;
+      background: var(--surface);
+      border: 2px dashed var(--line-strong);
+      border-radius: 24px;
+      color: var(--muted);
+      font-size: 16px;
+      font-weight: 800;
+    }
+
+    .note {
+      margin-top: 16px;
+      background: var(--surface);
+      border: 2px dashed var(--line-strong);
+      border-radius: 18px;
+      padding: 14px 16px;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.65;
+      font-weight: 600;
+    }
+
+    canvas {
+      width: 100% !important;
+      height: 300px !important;
+    }
+
+    @media (max-width: 1200px) {
+      .equipment-grid { grid-template-columns: 1fr; }
+    }
+
+    @media (max-width: 700px) {
+      .kpi-row { grid-template-columns: 1fr; }
+      .title-wrap h1 { font-size: 28px; }
+      .equipment-title { font-size: 24px; }
+      .filters { justify-content: flex-start; }
+      canvas { height: 250px !important; }
+    }
+  </style>
+</head>
+<body>
+  <div class="dashboard">
+    <div class="top-bar">
+      <div class="title-wrap">
+        <h1>PM Monthly Compliance Dashboard</h1>
+        <p>화이트 테마 통합 레이아웃 / 설비별 KPI는 YTD와 선택월 기준으로 표시됩니다.</p>
+      </div>
+      <div class="upload-panel">
+        <label for="excelFile"><strong>엑셀 업로드</strong></label>
+        <input type="file" id="excelFile" accept=".xlsx,.xls,.xlsm" />
+        <div class="file-status" id="fileStatus">파일을 선택하면 설비별 카드가 자동으로 갱신됩니다.</div>
+      <!-- Auto-load status indicator -->
+      <div id="loadStatus" style="display:none; margin-top:8px; padding:8px 14px; border-radius:8px; font-size:13px; align-items:center; gap:8px; flex-wrap:wrap;">
+        <span id="loadStatusIcon"></span>
+        <span id="loadStatusText"></span>
+        <button id="retryBtn" onclick="autoLoadExcel()" style="display:none; margin-left:10px; padding:4px 12px; border:2px solid #333; background:#fff; border-radius:8px; cursor:pointer; font-size:12px; font-weight:700;">🔄 다시 시도</button>
+        <button id="manualBtn" onclick="document.getElementById('excelFile').click()" style="display:none; margin-left:6px; padding:4px 12px; border:2px solid #333; background:#fff; border-radius:8px; cursor:pointer; font-size:12px; font-weight:700;">📁 수동 업로드</button>
+      </div>
+      </div>
+    </div>
+
+    <div class="equipment-grid" id="equipmentGrid">
+      <div class="empty-state">엑셀 파일을 업로드하면 각 설비가 하나의 화이트 테마 레이아웃에 표시됩니다.</div>
+    </div>
+
+    <div class="note">
+      <strong>엑셀 구조 기준</strong><br>
+      - 시트명: <b>월간실적</b><br>
+      - 연도: D5:L5 / 월: D6:L6 (L6 = YTD)<br>
+      - Conveyor: D7:L9 / ASRS: D10:L12 / Electrical: D13:L15 / Utility: <b>D16:L18</b> 가정<br>
+      - 상단 전체 요약(누적 계획, 누적 실적, 평균 달성률, Best Equipment)은 제거했습니다.<br>
+      - 각 설비 상단 KPI는 <b>YTD + 선택한 종료월</b> 데이터를 함께 표시합니다.
+    </div>
+  </div>
+
+  <script>
+    const equipmentConfig = [
+      { key: 'Conveyor', label: 'Conveyor', rows: { plan: 7, actual: 8, completion: 9 } },
+      { key: 'ASRS', label: 'ASRS', rows: { plan: 10, actual: 11, completion: 12 } },
+      { key: 'Electrical', label: 'Electrical', rows: { plan: 13, actual: 14, completion: 15 } },
+      { key: 'Utility', label: 'Utility', rows: { plan: 16, actual: 17, completion: 18 } }
+    ];
+
+    const charts = {};
+    const chartRangeState = {};
+    let latestDashboardData = [];
+
+    const equipmentGrid = document.getElementById('equipmentGrid');
+    const fileInput = document.getElementById('excelFile');
+    const fileStatus = document.getElementById('fileStatus');
+
+    const completionLabelPlugin = {
+      id: 'completionLabelPlugin',
+      afterDatasetsDraw(chart) {
+        const completionDatasetIndex = chart.data.datasets.findIndex(ds => ds.label === 'Completion%');
+        if (completionDatasetIndex === -1) return;
+        const meta = chart.getDatasetMeta(completionDatasetIndex);
+        const dataset = chart.data.datasets[completionDatasetIndex].data || [];
+        const ctx = chart.ctx;
+        ctx.save();
+        ctx.font = '700 11px Segoe UI';
+        ctx.fillStyle = '#ff8c42';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'bottom';
+        meta.data.forEach((point, index) => {
+          const value = dataset[index];
+          if (value === null || value === undefined || Number.isNaN(value)) return;
+          ctx.fillText(`${Math.round(value * 10) / 10}%`, point.x, point.y - 8);
+        });
+        ctx.restore();
+      }
+    };
+    Chart.register(completionLabelPlugin);
+
+    function cellValue(ws, addr) {
+      return ws[addr] ? ws[addr].v : '';
+    }
+
+    function parseNumber(value) {
+      if (value === null || value === undefined || value === '') return 0;
+      if (typeof value === 'number' && Number.isFinite(value)) return value;
+      const cleaned = String(value).replace(/,/g, '').replace(/%/g, '').trim();
+      const num = Number(cleaned);
+      return Number.isFinite(num) ? num : 0;
+    }
+
+    function parsePercent(value) {
+      if (value === null || value === undefined || value === '') return 0;
+      if (typeof value === 'number') return value <= 1 ? value * 100 : value;
+      const text = String(value).trim();
+      const num = parseNumber(text);
+      if (text.includes('%')) return num;
+      return num <= 1 ? num * 100 : num;
+    }
+
+    function formatNumber(val) {
+      return (Math.round((val + Number.EPSILON) * 10) / 10).toLocaleString('ko-KR');
+    }
+
+    function formatPercent(val) {
+      return `${(Math.round((val + Number.EPSILON) * 10) / 10).toLocaleString('ko-KR')}%`;
+    }
+
+    function getBadgeColor(value) {
+      if (value >= 95) return 'var(--good)';
+      if (value >= 85) return 'var(--warn)';
+      return 'var(--bad)';
+    }
+
+    function buildLabel(year, month) {
+      const monthText = String(month).trim();
+      const yearText = String(year || '').trim();
+      if (!monthText || monthText.toUpperCase() === 'YTD') return yearText;
+      const padded = /^\d+$/.test(monthText) ? monthText.padStart(2, '0') : monthText;
+      return `${yearText}-${padded}`;
+    }
+
+    function buildEmptyState() {
+      equipmentGrid.innerHTML = '<div class="empty-state">엑셀 파일을 업로드하면 각 설비가 하나의 화이트 테마 레이아웃에 표시됩니다.</div>';
+      latestDashboardData = [];
+    }
+
+    function extractDataFromWorksheet(ws) {
+      const labels = [];
+      for (let col = 3; col <= 10; col++) {
+        const year = cellValue(ws, XLSX.utils.encode_cell({ r: 4, c: col }));
+        const month = cellValue(ws, XLSX.utils.encode_cell({ r: 5, c: col }));
+        labels.push(buildLabel(year, month));
+      }
+      const ytdHeader = cellValue(ws, 'L6') || 'YTD';
+
+      return equipmentConfig.map(eq => {
+        const plan = [];
+        const actual = [];
+        const completion = [];
+        for (let col = 3; col <= 10; col++) {
+          plan.push(parseNumber(cellValue(ws, XLSX.utils.encode_cell({ r: eq.rows.plan - 1, c: col }))));
+          actual.push(parseNumber(cellValue(ws, XLSX.utils.encode_cell({ r: eq.rows.actual - 1, c: col }))));
+          completion.push(parsePercent(cellValue(ws, XLSX.utils.encode_cell({ r: eq.rows.completion - 1, c: col }))));
+        }
+        return {
+          ...eq,
+          labels,
+          monthly: { plan, actual, completion },
+          ytd: {
+            header: ytdHeader,
+            plan: parseNumber(cellValue(ws, `L${eq.rows.plan}`)),
+            actual: parseNumber(cellValue(ws, `L${eq.rows.actual}`)),
+            completion: parsePercent(cellValue(ws, `L${eq.rows.completion}`))
+          }
+        };
+      });
+    }
+
+    function initializeRangeState(data) {
+      data.forEach(item => {
+        const maxIndex = Math.max(0, item.labels.length - 1);
+        const existing = chartRangeState[item.key];
+        chartRangeState[item.key] = {
+          start: existing && Number.isInteger(existing.start) ? Math.max(0, Math.min(existing.start, maxIndex)) : 0,
+          end: existing && Number.isInteger(existing.end) ? Math.max(0, Math.min(existing.end, maxIndex)) : maxIndex
+        };
+        if (chartRangeState[item.key].start > chartRangeState[item.key].end) {
+          chartRangeState[item.key].start = 0;
+          chartRangeState[item.key].end = maxIndex;
+        }
+      });
+    }
+
+    function createRangeOptions(labels, selectedIndex) {
+      return labels.map((label, index) => `<option value="${index}" ${index === selectedIndex ? 'selected' : ''}>${label}</option>`).join('');
+    }
+
+    function getFilteredItem(item) {
+      const state = chartRangeState[item.key] || { start: 0, end: item.labels.length - 1 };
+      const start = Math.max(0, Math.min(state.start, item.labels.length - 1));
+      const end = Math.max(start, Math.min(state.end, item.labels.length - 1));
+      const selectedIndex = end;
+      return {
+        ...item,
+        state: { start, end },
+        filteredLabels: item.labels.slice(start, end + 1),
+        filteredPlan: item.monthly.plan.slice(start, end + 1),
+        filteredActual: item.monthly.actual.slice(start, end + 1),
+        filteredCompletion: item.monthly.completion.slice(start, end + 1),
+        selectedMonthLabel: item.labels[selectedIndex],
+        selectedMonth: {
+          plan: item.monthly.plan[selectedIndex],
+          actual: item.monthly.actual[selectedIndex],
+          completion: item.monthly.completion[selectedIndex]
+        }
+      };
+    }
+
+    function renderEquipmentCards(data) {
+      Object.values(charts).forEach(chart => chart.destroy());
+      Object.keys(charts).forEach(key => delete charts[key]);
+
+      equipmentGrid.innerHTML = data.map(item => {
+        const filtered = getFilteredItem(item);
+        return `
+          <div class="equipment-card">
+            <div class="equipment-header">
+              <div>
+                <div class="equipment-title">${item.label}</div>
+                <div class="equipment-subtitle">${item.ytd.header} 기준 KPI + 선택기간 차트</div>
+              </div>
+              <div class="completion-badge" style="background:${getBadgeColor(item.ytd.completion)}">${formatPercent(item.ytd.completion)}</div>
+            </div>
+
+            <div class="kpi-row">
+              <div class="kpi-box">
+                <div class="label">Total Plan</div>
+                <div class="kpi-main">
+                  <div class="ytd-label">YTD</div>
+                  <div class="ytd-value" style="color:#4f9ded;">${formatNumber(item.ytd.plan)}</div>
+                  <div class="divider"></div>
+                  <div class="sel-label">${filtered.selectedMonthLabel}</div>
+                  <div class="sel-value">${formatNumber(filtered.selectedMonth.plan)}</div>
+                </div>
+              </div>
+              <div class="kpi-box">
+                <div class="label">Compliant WO</div>
+                <div class="kpi-main">
+                  <div class="ytd-label">YTD</div>
+                  <div class="ytd-value" style="color:#ff8c42;">${formatNumber(item.ytd.actual)}</div>
+                  <div class="divider"></div>
+                  <div class="sel-label">${filtered.selectedMonthLabel}</div>
+                  <div class="sel-value">${formatNumber(filtered.selectedMonth.actual)}</div>
+                </div>
+              </div>
+              <div class="kpi-box">
+                <div class="label">Compliance %</div>
+                <div class="kpi-main">
+                  <div class="ytd-label">YTD</div>
+                  <div class="ytd-value" style="color:#ff8c42;">${formatPercent(item.ytd.completion)}</div>
+                  <div class="divider"></div>
+                  <div class="sel-label">${filtered.selectedMonthLabel}</div>
+                  <div class="sel-value">${formatPercent(filtered.selectedMonth.completion)}</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="filters">
+              <label for="start-${item.key}">시작월</label>
+              <select id="start-${item.key}" data-eq="${item.key}" data-role="start">${createRangeOptions(item.labels, filtered.state.start)}</select>
+              <label for="end-${item.key}">종료월</label>
+              <select id="end-${item.key}" data-eq="${item.key}" data-role="end">${createRangeOptions(item.labels, filtered.state.end)}</select>
+            </div>
+
+            <div class="chart-panel">
+              <div class="chart-panel-title">${item.label} Trend (${filtered.filteredLabels[0] || '-'} ~ ${filtered.filteredLabels[filtered.filteredLabels.length - 1] || '-'})</div>
+              <canvas id="chart-${item.key}"></canvas>
+            </div>
+          </div>`;
+      }).join('');
+
+      equipmentGrid.querySelectorAll('select[data-eq]').forEach(select => {
+        select.addEventListener('change', handleRangeChange);
+      });
+
+      data.forEach(item => {
+        const filtered = getFilteredItem(item);
+        const ctx = document.getElementById(`chart-${item.key}`);
+        charts[item.key] = new Chart(ctx, {
+          data: {
+            labels: filtered.filteredLabels,
+            datasets: [
+              {
+                type: 'bar',
+                label: 'Plan',
+                data: filtered.filteredPlan,
+                backgroundColor: 'rgba(142, 202, 230, 0.92)',
+                borderColor: 'rgba(79, 195, 216, 1)',
+                borderWidth: 1.2,
+                borderRadius: 6,
+                yAxisID: 'y'
+              },
+              {
+                type: 'bar',
+                label: 'Actual',
+                data: filtered.filteredActual,
+                backgroundColor: 'rgba(79, 157, 237, 0.88)',
+                borderColor: 'rgba(37, 99, 235, 1)',
+                borderWidth: 1.2,
+                borderRadius: 6,
+                yAxisID: 'y'
+              },
+              {
+                type: 'line',
+                label: 'Completion%',
+                data: filtered.filteredCompletion,
+                borderColor: 'rgba(255, 140, 66, 1)',
+                backgroundColor: 'rgba(255, 140, 66, 0.12)',
+                pointBackgroundColor: 'rgba(255, 140, 66, 1)',
+                pointBorderColor: '#ffffff',
+                pointRadius: 4,
+                pointHoverRadius: 5,
+                borderWidth: 2.5,
+                tension: 0,
+                fill: false,
+                yAxisID: 'y1'
+              }
+            ]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: { mode: 'index', intersect: false },
+            layout: { padding: { top: 18, left: 4, right: 4 } },
+            plugins: {
+              legend: {
+                position: 'top',
+                labels: {
+                  color: '#475569',
+                  font: { size: 12, weight: '700' },
+                  boxWidth: 14,
+                  usePointStyle: false
+                }
+              },
+              tooltip: {
+                callbacks: {
+                  label: function(context) {
+                    if (context.dataset.label === 'Completion%') return `${context.dataset.label}: ${formatPercent(context.raw)}`;
+                    return `${context.dataset.label}: ${formatNumber(context.raw)}`;
+                  }
+                }
+              }
+            },
+            scales: {
+              x: {
+                grid: { display: false },
+                ticks: { color: '#64748b', font: { size: 11, weight: '700' } }
+              },
+              y: {
+                beginAtZero: true,
+                position: 'left',
+                grid: { color: 'rgba(191, 232, 239, 0.55)' },
+                ticks: {
+                  color: '#64748b',
+                  font: { size: 11 },
+                  callback: function(value) { return formatNumber(value); }
+                },
+                title: {
+                  display: true,
+                  text: 'Plan / Actual',
+                  color: '#64748b',
+                  font: { size: 11, weight: '700' }
+                }
+              },
+              y1: {
+                beginAtZero: true,
+                position: 'right',
+                min: 0,
+                max: 120,
+                grid: { drawOnChartArea: false },
+                ticks: {
+                  color: '#ff8c42',
+                  font: { size: 11, weight: '700' },
+                  callback: function(value) { return `${value}%`; }
+                },
+                title: {
+                  display: true,
+                  text: 'Completion %',
+                  color: '#ff8c42',
+                  font: { size: 11, weight: '700' }
+                }
+              }
+            }
+          }
+        });
+      });
+    }
+
+    function handleRangeChange(event) {
+      const eq = event.target.dataset.eq;
+      const role = event.target.dataset.role;
+      const value = Number(event.target.value);
+      if (!chartRangeState[eq]) return;
+      chartRangeState[eq][role] = value;
+      if (chartRangeState[eq].start > chartRangeState[eq].end) {
+        if (role === 'start') chartRangeState[eq].end = chartRangeState[eq].start;
+        else chartRangeState[eq].start = chartRangeState[eq].end;
+      }
+      renderEquipmentCards(latestDashboardData);
+    }
+
+    function validateWorksheet(workbook) {
+      const ws = workbook.Sheets['월간실적'];
+      if (!ws) throw new Error('"월간실적" 시트를 찾을 수 없습니다.');
+      return ws;
+    }
+
+    fileInput.addEventListener('change', async (event) => {
+      const file = event.target.files[0];
+      if (!file) return;
+      fileStatus.textContent = `로딩 중: ${file.name}`;
+      try {
+        const buffer = await file.arrayBuffer();
+        const workbook = XLSX.read(buffer, { type: 'array' });
+        const ws = validateWorksheet(workbook);
+        latestDashboardData = extractDataFromWorksheet(ws);
+        initializeRangeState(latestDashboardData);
+        renderEquipmentCards(latestDashboardData);
+        fileStatus.textContent = `Loaded: ${file.name} | 상단 전체 요약 제거 완료`;
+      } catch (error) {
+        console.error(error);
+  // buildEmptyState(); // → autoLoadExcel()로 대체됨
+        fileStatus.textContent = `오류: ${error.message}`;
+        alert(`파일 처리 중 오류가 발생했습니다.\n${error.message}`);
+      }
+    });
+
+    buildEmptyState();
+  
+
+// ================================================================
+// AUTO-LOAD: GitHub 저장소의 Excel 파일 자동 불러오기
+// ================================================================
+async function autoLoadExcel() {
+  var container = document.getElementById('loadStatus');
+  var icon = document.getElementById('loadStatusIcon');
+  var text = document.getElementById('loadStatusText');
+  var retryBtn = document.getElementById('retryBtn');
+  var manualBtn = document.getElementById('manualBtn');
+
+  container.style.display = 'flex';
+  container.style.background = '#e8f0fe';
+  container.style.color = '#1a73e8';
+  container.style.border = '1px solid #d2e3fc';
+  icon.textContent = '⏳';
+  text.textContent = '📡 Excel 데이터를 불러오는 중...';
+  retryBtn.style.display = 'none';
+  manualBtn.style.display = 'none';
+
+  try {
+    var response = await fetch('./pm_data.xlsm');
+    if (!response.ok) throw new Error('HTTP 오류: ' + response.status);
+
+    var arrayBuffer = await response.arrayBuffer();
+    if (arrayBuffer.byteLength < 100) throw new Error('파일 크기가 너무 작습니다.');
+
+    var workbook = XLSX.read(arrayBuffer, { type: 'array' });
+    var ws = validateWorksheet(workbook);
+    latestDashboardData = extractDataFromWorksheet(ws);
+    initializeRangeState(latestDashboardData);
+    renderEquipmentCards(latestDashboardData);
+
+    var fs = document.getElementById('fileStatus');
+    if (fs) fs.textContent = '✅ pm_data.xlsm (GitHub 자동 로드)';
+
+    container.style.background = '#e6f4ea';
+    container.style.color = '#1e8e3e';
+    container.style.border = '1px solid #ceead6';
+    icon.textContent = '✅';
+    text.textContent = '데이터를 성공적으로 불러왔습니다!';
+    setTimeout(function(){ container.style.display = 'none'; }, 4000);
+
+  } catch (err) {
+    console.error('Auto-load failed:', err);
+    container.style.background = '#fce8e6';
+    container.style.color = '#d93025';
+    container.style.border = '1px solid #f5c6cb';
+    icon.textContent = '⚠️';
+    text.textContent = '데이터를 불러오지 못했습니다. ' + err.message + ' — 수동으로 업로드해 주세요.';
+    retryBtn.style.display = 'inline-block';
+    manualBtn.style.display = 'inline-block';
+    buildEmptyState();
+  }
+}
+
+// 페이지 로드 시 자동 실행
+document.addEventListener('DOMContentLoaded', function() {
+  autoLoadExcel();
+});
+
+</script>
+</body>
+</html>
