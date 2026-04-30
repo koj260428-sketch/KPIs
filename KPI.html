@@ -145,11 +145,257 @@ th{background:#f3f4f6; font-weight:800; text-align:center; position:sticky; top:
     .major-select{border:2px solid var(--border); border-radius:10px; padding:6px 10px; font-weight:800; background:var(--ctl-bg);}    
     
     /* ✅ Remark dropdown: show full text (prevent truncation) */
-    #remarkMonthSelect{min-width:140px; width:140px; max-width:none;}
+    #remarkMonthSelect{min-width:180px; width:auto; max-width:none; padding-right:24px;}
 .major-badge{border:2px solid var(--border); border-radius:999px; padding:6px 10px; font-weight:800; background:var(--ctl-bg);}  
 
     @media (max-width: 1100px){.charts{grid-template-columns: 1fr;}}
-  </style>
+  
+/* ============================================================
+   PRINT / PDF – A4 Portrait
+   강제 페이지 나누기 없음 – 카드 단위로 자연스럽게 흐름
+   ============================================================ */
+@media print {
+  /* 배경색·테두리 강제 인쇄 */
+  *, *::before, *::after {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    color-adjust: exact !important;
+  }
+
+  @page {
+    size: A4 portrait;
+    margin: 3mm 3mm;
+  }
+
+  /* ── UI 요소 숨김 ── */
+  #card-header label.pill,
+  #loadStatus,
+  #retryBtn, #manualBtn,
+  #fileInput,
+  #printBtn,
+  .print-hide {
+    display: none !important;
+  }
+
+  /* ── 전체 레이아웃 ── */
+  body {
+    margin: 0;
+    padding: 0;
+    font-size: 9px;
+  }
+  .wrap { max-width: 100%; padding: 0; margin: 0; }
+  .grid { gap: 2px; }
+
+  /* ============================================================
+     모든 카드: 내부 분리만 방지 (강제 나누기 없음)
+     ============================================================ */
+  .card {
+    overflow: visible !important;
+    height: auto !important;
+    border-width: 1.5px;
+    margin-bottom: 0;
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+
+  .scroll-x {
+    overflow: visible !important;
+  }
+
+  /* ============================================================
+     헤더: 여백 최소화, 글씨에 맞게 밀착
+     ============================================================ */
+  #card-header {
+    height: auto !important;
+    min-height: 0 !important;
+    padding: 2px 6px 2px 6px !important;
+    line-height: 1.2;
+  }
+  .title {
+    font-size: 20px;
+    margin: 0 !important;
+    padding: 0 !important;
+    line-height: 1.2;
+  }
+  .titlebar {
+    gap: 3px;
+    margin: 0 !important;
+    padding: 0 !important;
+    align-items: center;
+  }
+  .titlebar > div { margin: 0; padding: 0; }
+  .titlebar .pill {
+    font-size: 10px;
+    padding: 2px 6px;
+    border-width: 1.5px;
+    margin: 0;
+    line-height: 1.2;
+  }
+  #card-header h2 { margin: 0 !important; }
+
+  /* ============================================================
+     Overall 테이블
+     ============================================================ */
+  #card-overall {
+    padding: 2px 4px !important;
+  }
+  #card-overall h2 {
+    font-size: 9px;
+    margin-bottom: 1px;
+  }
+  #overallTable {
+    table-layout: auto !important;
+    width: 100%;
+    font-size: 5.8px !important;
+  }
+  #overallTable th, #overallTable td {
+    font-size: 5.8px !important;
+    padding: 0.8px 1.2px !important;
+    width: auto !important;
+    white-space: nowrap;
+    line-height: 1.1 !important;
+  }
+  #overallTable th:nth-child(1), #overallTable td:nth-child(1),
+  #overallTable th:nth-child(2), #overallTable td:nth-child(2),
+  #overallTable th:nth-child(n+3), #overallTable td:nth-child(n+3) {
+    width: auto !important;
+  }
+  #card-overall .small { font-size: 6px !important; margin-top: 0 !important; }
+
+  /* ============================================================
+     차트 섹션
+     ============================================================ */
+  #card-dt, #card-dtd {
+    padding: 2px 4px !important;
+  }
+  #card-dt h2, #card-dtd h2 {
+    font-size: 9px;
+    margin-bottom: 1px;
+  }
+
+  .charts {
+    height: auto !important;
+    overflow: visible !important;
+    display: grid !important;
+    grid-template-columns: repeat(3, 1fr) !important;
+    grid-auto-rows: auto !important;
+    gap: 2px !important;
+    padding: 1px 0 !important;
+  }
+
+  .chart-card {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    padding: 2px 3px !important;
+    border-width: 1px;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .chart-title {
+    font-size: 7px !important;
+    margin-bottom: 0px !important;
+    font-weight: 900;
+  }
+
+  .chart-card canvas {
+    max-height: 135px !important;
+    width: 100% !important;
+    flex: 1 1 auto;
+  }
+
+  /* ============================================================
+     Major Issue 테이블
+     ============================================================ */
+  #card-major {
+    padding: 2px 4px !important;
+  }
+  #card-major .major-head h2 {
+    font-size: 9px;
+    margin: 0;
+  }
+  #card-major .major-controls { gap: 4px; }
+  #card-major .major-select {
+    font-size: 7px; padding: 1px 4px;
+    border-width: 1px; border-radius: 6px;
+  }
+  #card-major .major-badge {
+    font-size: 7px; padding: 1px 5px; border-width: 1px;
+  }
+  #card-major .major-controls .small { font-size: 6px !important; }
+  #majorTable th, #majorTable td {
+    font-size: 6px !important;
+    padding: 1px 2px !important;
+    line-height: 1.15 !important;
+  }
+  #majorTable td:nth-child(3),
+  #majorTable td:nth-child(4),
+  #majorTable td:nth-child(6) {
+    white-space: normal !important;
+    word-break: break-all !important;
+  }
+  #card-major .small { font-size: 5.5px !important; margin-top: 0 !important; }
+
+  /* ============================================================
+     나머지 테이블 (Open / Improve / Remark)
+     ============================================================ */
+  #openTable th, #openTable td,
+  #improveTable th, #improveTable td {
+    font-size: 9px !important;
+    padding: 2px 4px !important;
+  }
+
+  .major-head h2 { font-size: 11px; }
+  .major-select, .major-badge, .major-controls .pill {
+    border-width: 1px;
+    font-size: 9px;
+    padding: 2px 5px;
+  }
+
+  /* ============================================================
+     모든 드롭다운(select) 잘림 방지
+     ============================================================ */
+  select,
+  .major-select,
+  #remarkMonthSelect,
+  #majorMonthSelect {
+    -webkit-appearance: none;
+    appearance: none;
+    min-width: auto !important;
+    width: auto !important;
+    max-width: none !important;
+    white-space: nowrap !important;
+    overflow: visible !important;
+    text-overflow: clip !important;
+    padding-right: 12px !important;
+  }
+
+  /* ============================================================
+     Remark 카드
+     ============================================================ */
+  #card-remark {
+    height: auto !important;
+    overflow: visible !important;
+  }
+
+  /* ============================================================
+     테이블 공통: 행 분리 방지 + 헤더 반복
+     ============================================================ */
+  table { page-break-inside: auto; }
+  tr {
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+  thead { display: table-header-group; }
+  tfoot { display: table-footer-group; }
+
+  #printBtn { display: none !important; }
+}
+
+</style>
 </head>
 <body>
 <div class="wrap">
@@ -168,6 +414,8 @@ th{background:#f3f4f6; font-weight:800; text-align:center; position:sticky; top:
           </label>
           <span class="pill"><span>FY</span><span id="fyBadge">##</span></span>
           <span class="pill"><span>FY Range</span><span id="fyRangeBadge">-</span></span>
+         <button id="printBtn" class="pill" onclick="window.print()" style="cursor:pointer; background:#fff; font-size:14px; font-weight:800;">🖨️ Print / PDF</button>
+
         </div>
       </div>
 <!-- Auto-load status indicator -->
@@ -751,19 +999,25 @@ const dtdWrap = $('downtimeDetailCharts');
   const MMM = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
   function normYYYYMM_Dash(v){
-    if(v==null) return '';
-    const s = String(v).trim();
-    if(!s) return '';
-    const m = s.match(/^(\d{4})[\.\-\/](\d{1,2})/);
-    if(m){
-      return `${m[1]}-${String(m[2]).padStart(2,'0')}`;
-    }
-    const m2 = s.match(/^(\d{4})(\d{2})$/);
-    if(m2){
-      return `${m2[1]}-${m2[2]}`;
-    }
-    return s.slice(0,7);
-  }
+ if(v==null) return '';
+ const s = String(v).trim();
+ if(!s) return '';
+ const m = s.match(/^(\d{4})[\.\-\/](\d{1,2})/);
+ if(m){
+ return `${m[1]}-${String(m[2]).padStart(2,'0')}`;
+ }
+ const mText = s.match(/^(\d{4})[\.\-\/]([A-Za-z]{3})/);
+ if(mText){
+ const mon = mText[2].toLowerCase();
+ const idx = ['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'].indexOf(mon);
+ if(idx >= 0) return `${mText[1]}-${String(idx+1).padStart(2,'0')}`;
+ }
+ const m2 = s.match(/^(\d{4})(\d{2})$/);
+ if(m2){
+ return `${m2[1]}-${m2[2]}`;
+ }
+ return s.slice(0,7);
+ }
 
   function ymToMMM(ym){
     const m = String(ym).match(/^(\d{4})-(\d{2})$/);
