@@ -287,7 +287,60 @@
       .filters { justify-content: flex-start; }
       canvas { height: 250px !important; }
     }
-  </style>
+  
+    .pm-list-section{margin-top:18px;background:var(--surface);border:2px solid var(--line-strong);border-radius:24px;box-shadow:var(--shadow);padding:18px}
+    .pm-list-header{font-size:28px;font-weight:800;color:#1186a4;margin-bottom:14px}
+    .pm-list-filters{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:14px;align-items:center}
+    .pm-list-filters label{font-size:12px;font-weight:800;color:var(--muted)}
+    .pm-list-filters select{min-width:120px;padding:7px 10px;border-radius:var(--radius-sm);border:1.8px solid var(--line-strong);background:#fff;color:var(--text);font-size:12px;font-weight:700}
+    .pm-list-count{font-size:13px;font-weight:700;color:var(--muted);margin-left:auto}
+    .pm-list-table-wrap{border:2px solid var(--line);border-radius:var(--radius-md)}
+    .pm-list-table{width:100%;border-collapse:collapse;font-size:12px}
+    .pm-list-table thead th{background:#1186a4;color:#fff;font-weight:800;padding:10px 8px;text-align:left;white-space:nowrap}
+    .pm-list-table tbody tr{border-bottom:1px solid var(--line)}
+    .pm-list-table tbody tr:hover{background:#f0fafc}
+    .pm-list-table tbody td{padding:8px;color:var(--text);font-weight:600;line-height:1.5}
+    .pm-list-table tbody tr:nth-child(even){background:var(--surface-soft)}
+    .actual-ok{color:var(--good);font-weight:800}
+    .actual-empty{color:var(--bad);font-weight:700}
+    .pm-list-empty{text-align:center;padding:40px;color:var(--muted);font-weight:700;font-size:14px}
+    @media print{
+      @page{size:landscape;margin:5mm 7mm}
+      body{margin:0;padding:0;background:#fff;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+      .dashboard{padding:0;max-width:100%}
+      .upload-panel,.note,#loadStatus{display:none!important}
+      .top-bar{margin-bottom:3px}
+      .title-wrap h1{font-size:20px}
+      .title-wrap p{display:none}
+      .equipment-grid{display:grid!important;grid-template-columns:1fr 1fr!important;gap:8px!important}
+      .equipment-card{page-break-inside:avoid;break-inside:avoid;border-radius:10px;padding:7px 9px;margin:0;box-shadow:none;border:1.5px solid #8dd7e6}
+      .equipment-header{margin-bottom:4px;gap:6px}
+      .equipment-title{font-size:15px}
+      .equipment-subtitle{display:none}
+      .completion-badge{font-size:10px;padding:4px 7px;min-width:60px}
+      .kpi-row{gap:4px;margin-bottom:5px}
+      .kpi-box{min-height:auto;padding:5px 6px;border-radius:6px;border-width:1px}
+      .kpi-box .label{font-size:9px;margin-bottom:2px}
+      .kpi-main{gap:2px}
+      .kpi-main .ytd-label,.kpi-main .sel-label{font-size:8px}
+      .kpi-main .ytd-value{font-size:17px}
+      .kpi-main .sel-value{font-size:12px}
+      .divider{display:none}
+      .filters{display:none!important}
+      .chart-panel{padding:6px;border-radius:6px;border-width:1px}
+      .chart-panel-title{font-size:11px;margin-bottom:2px}
+      canvas{height:145px!important}
+      .equipment-card:nth-child(4){page-break-after:always}
+      .pm-list-section{display:block!important;page-break-before:always;border-radius:10px;padding:8px 10px;box-shadow:none;border:1.5px solid #8dd7e6}
+      .pm-list-header{font-size:18px;margin-bottom:6px}
+      .pm-list-filters{display:none!important}
+      .pm-list-count{display:none!important}
+      .pm-list-table{font-size:8px}
+      .pm-list-table thead th{padding:5px 4px;font-size:8px}
+      .pm-list-table tbody td{padding:3px 4px;font-size:8px;line-height:1.3}
+      .pm-list-table tr{page-break-inside:avoid;break-inside:avoid}
+    }
+    </style>
 </head>
 <body>
   <div class="dashboard">
@@ -314,6 +367,20 @@
       <div class="empty-state">엑셀 파일을 업로드하면 각 설비가 하나의 화이트 테마 레이아웃에 표시됩니다.</div>
     </div>
 
+    
+    <div class="pm-list-section" id="pmListSection" style="display:none">
+      <div class="pm-list-header">📋 PM ITEM LIST</div>
+      <div class="pm-list-filters">
+        <label>Equipment</label><select id="pmFilterEquip"><option value="ALL">ALL</option></select>
+        <label>Year</label><select id="pmFilterYear"><option value="ALL">ALL</option></select>
+        <label>Month</label><select id="pmFilterMonth"><option value="ALL">ALL</option></select>
+        <span class="pm-list-count" id="pmListCount"></span>
+      </div>
+      <div class="pm-list-table-wrap"><table class="pm-list-table">
+        <thead><tr><th>Equipment</th><th>C</th><th>D</th><th>Check Type</th><th>PM Item</th><th>Cycle(M)</th><th>Due Date</th><th>Actual</th></tr></thead>
+        <tbody id="pmListBody"></tbody>
+      </table></div>
+    </div>
     <div class="note">
       <strong>엑셀 구조 기준</strong><br>
       - 시트명: <b>월간실적</b><br>
@@ -693,6 +760,7 @@
         latestDashboardData = extractDataFromWorksheet(ws);
         initializeRangeState(latestDashboardData);
         renderEquipmentCards(latestDashboardData);
+        extractScheduleData(workbook);
         fileStatus.textContent = `Loaded: ${file.name} | 상단 전체 요약 제거 완료`;
       } catch (error) {
         console.error(error);
@@ -736,6 +804,7 @@ async function autoLoadExcel() {
     latestDashboardData = extractDataFromWorksheet(ws);
     initializeRangeState(latestDashboardData);
     renderEquipmentCards(latestDashboardData);
+    extractScheduleData(workbook);
 
     var fs = document.getElementById('fileStatus');
     if (fs) fs.textContent = '✅ pm_data.xlsm (GitHub 자동 로드)';
@@ -764,6 +833,13 @@ async function autoLoadExcel() {
 document.addEventListener('DOMContentLoaded', function() {
   autoLoadExcel();
 });
+
+
+var scheduleData=[];
+function escapeHtml(s){if(!s)return'';return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+function extractScheduleData(wb){var ws=wb.Sheets['Schedule'];if(!ws||!ws['!ref'])return;var rng=XLSX.utils.decode_range(ws['!ref']),rows=[];for(var r=1;r<=rng.e.r;r++){var B=cellValue(ws,XLSX.utils.encode_cell({r:r,c:1}));if(!B)continue;var C=cellValue(ws,XLSX.utils.encode_cell({r:r,c:2})),D=cellValue(ws,XLSX.utils.encode_cell({r:r,c:3})),E=cellValue(ws,XLSX.utils.encode_cell({r:r,c:4})),F=cellValue(ws,XLSX.utils.encode_cell({r:r,c:5})),G=cellValue(ws,XLSX.utils.encode_cell({r:r,c:6})),I=cellValue(ws,XLSX.utils.encode_cell({r:r,c:8})),J=cellValue(ws,XLSX.utils.encode_cell({r:r,c:9})),K=cellValue(ws,XLSX.utils.encode_cell({r:r,c:10})),L=cellValue(ws,XLSX.utils.encode_cell({r:r,c:11}));var ds='';if(I){if(typeof I==='number'&&I>40000){var dt=new Date((I-25569)*864e5);ds=dt.getFullYear()+'-'+String(dt.getMonth()+1).padStart(2,'0')+'-'+String(dt.getDate()).padStart(2,'0');}else{ds=String(I);var pp=ds.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);if(pp)ds=pp[3]+'-'+pp[1].padStart(2,'0')+'-'+pp[2].padStart(2,'0');}}var yr=J?String(J):'',mo=K?String(K):'';if(!mo&&ds){var mm=ds.match(/-(\d{2})-/);if(mm)mo=String(parseInt(mm[1]));}rows.push({eq:String(B||''),c:String(C||''),d:String(D||''),ct:String(E||''),pi:String(F||''),cy:String(G||''),dd:ds,yr:yr,mo:mo,ac:String(L||'')});}scheduleData=rows;buildPmFilters();renderPmList();document.getElementById('pmListSection').style.display='';}
+function buildPmFilters(){var eS=new Set(),yS=new Set(),mS=new Set();scheduleData.forEach(function(r){if(r.eq)eS.add(r.eq);if(r.yr)yS.add(r.yr);if(r.mo)mS.add(r.mo);});var eE=document.getElementById('pmFilterEquip');eE.innerHTML='<option value="ALL">ALL</option>';Array.from(eS).sort().forEach(function(v){eE.innerHTML+='<option value="'+v+'">'+v+'</option>';});var yE=document.getElementById('pmFilterYear');yE.innerHTML='<option value="ALL">ALL</option>';Array.from(yS).sort().forEach(function(v){yE.innerHTML+='<option value="'+v+'">'+v+'</option>';});var mE=document.getElementById('pmFilterMonth');mE.innerHTML='<option value="ALL">ALL</option>';Array.from(mS).sort(function(a,b){return Number(a)-Number(b);}).forEach(function(v){mE.innerHTML+='<option value="'+v+'">'+v+'\uC6D4</option>';});eE.onchange=renderPmList;yE.onchange=renderPmList;mE.onchange=renderPmList;}
+function renderPmList(){var ef=document.getElementById('pmFilterEquip').value,yf=document.getElementById('pmFilterYear').value,mf=document.getElementById('pmFilterMonth').value;var fl=scheduleData.filter(function(r){if(ef!=='ALL'&&r.eq!==ef)return false;if(yf!=='ALL'&&r.yr!==yf)return false;if(mf!=='ALL'&&r.mo!==mf)return false;return true;});var tb=document.getElementById('pmListBody');document.getElementById('pmListCount').textContent='\uCD1D '+fl.length.toLocaleString('ko-KR')+'\uAC74';if(!fl.length){tb.innerHTML='<tr><td colspan="8" class="pm-list-empty">\uC870\uAC74\uC5D0 \uB9DE\uB294 PM \uD56D\uBAA9\uC774 \uC5C6\uC2B5\uB2C8\uB2E4.</td></tr>';return;}var mx=500,ht='';fl.slice(0,mx).forEach(function(r){var ac=r.ac&&r.ac.toUpperCase()==='OK'?'actual-ok':(r.ac?'':'actual-empty');ht+='<tr><td><b>'+escapeHtml(r.eq)+'</b></td><td>'+escapeHtml(r.c)+'</td><td>'+escapeHtml(r.d)+'</td><td>'+escapeHtml(r.ct)+'</td><td>'+escapeHtml(r.pi)+'</td><td style="text-align:center">'+escapeHtml(r.cy)+'</td><td style="white-space:nowrap">'+escapeHtml(r.dd)+'</td><td class="'+ac+'" style="text-align:center">'+(r.ac||'-')+'</td></tr>';});if(fl.length>mx)ht+='<tr><td colspan="8" class="pm-list-empty">\u26A0 '+fl.length.toLocaleString('ko-KR')+'\uAC74 \uC911 \uC0C1\uC704 '+mx+'\uAC74\uB9CC \uD45C\uC2DC</td></tr>';tb.innerHTML=ht;}
 
 </script>
 </body>
