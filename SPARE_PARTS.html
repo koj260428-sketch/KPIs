@@ -1008,6 +1008,7 @@
         "안전재고\n충족현황",
         "안전재고 충족현황",
         "안전재고충족현황",
+        "충족현황",
         "SafetyStockStatus",
         "SafetyStatus",
         "Status"
@@ -1110,6 +1111,41 @@
   }
 
   // ---- File loading ----
+  // ---- Smart header detection for Parts sheet ----
+  function parseItemsSheet(wb, sheetName){
+    if (!sheetName || !wb.Sheets[sheetName]) return [];
+    var ws = wb.Sheets[sheetName];
+    var raw = XLSX.utils.sheet_to_json(ws, { header:1, defval:'' });
+    var headerIdx = -1;
+    for (var i = 0; i < Math.min(raw.length, 30); i++){
+      var row = raw[i];
+      if (!row) continue;
+      for (var j = 0; j < row.length; j++){
+        if (String(row[j]).trim().toUpperCase() === 'EQUIPMENT'){ headerIdx = i; break; }
+      }
+      if (headerIdx >= 0) break;
+    }
+    if (headerIdx < 0) return XLSX.utils.sheet_to_json(ws, { defval:'' });
+    var headers = raw[headerIdx].map(function(h){ return String(h==null?'':h).trim(); });
+    var items = [];
+    for (var i = headerIdx + 1; i < raw.length; i++){
+      var row = raw[i];
+      if (!row) continue;
+      var hasData = false;
+      for (var j = 0; j < row.length; j++){
+        if (row[j] !== '' && row[j] != null){ hasData = true; break; }
+      }
+      if (!hasData) continue;
+      var obj = {};
+      for (var j = 0; j < headers.length; j++){
+        if (headers[j]) obj[headers[j]] = (row[j] == null ? '' : row[j]);
+      }
+      items.push(obj);
+    }
+    console.log('[parseItemsSheet] headerRow:', headerIdx, 'cols:', headers.filter(Boolean).length, 'rows:', items.length);
+    return items;
+  }
+
   async function readExcelFile(file){
     const ab = await file.arrayBuffer();
     const wb = XLSX.read(ab, { type: 'array', cellDates: true });
@@ -1118,7 +1154,7 @@
     const itemsName = wb.SheetNames.find(n => n.toLowerCase() === 'items');
     const detailName = partsName || itemsName || wb.SheetNames[1];
     const monthly = XLSX.utils.sheet_to_json(wb.Sheets[monthlyName], { defval: "", raw: false, dateNF: "yyyy-mm" });
-    const items = detailName ? XLSX.utils.sheet_to_json(wb.Sheets[detailName], { defval: "" }) : [];
+    const items = parseItemsSheet(wb, detailName);
     return { monthly, items };
   }
 
@@ -1246,7 +1282,7 @@ async function autoLoadExcel() {
     if (!itemsName)   throw new Error('parts/items 시트를 찾을 수 없습니다. (시트: ' + wb.SheetNames.join(', ') + ')');
 
     var monthly = XLSX.utils.sheet_to_json(wb.Sheets[monthlyName], { defval: '' });
-    var items   = XLSX.utils.sheet_to_json(wb.Sheets[itemsName],   { defval: '' });
+    var items   = parseItemsSheet(wb, itemsName);
 
     updateReport(monthly, items, { sourceName: 'spare_data.xlsx (GitHub 자동 로드)' });
 
