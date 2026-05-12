@@ -1111,7 +1111,7 @@
   }
 
   // ---- File loading ----
-  // ---- Smart header detection for Parts sheet ----
+  // ---- Smart header detection for Parts/Items sheet ----
   function parseItemsSheet(wb, sheetName){
     if (!sheetName || !wb.Sheets[sheetName]) return [];
     var ws = wb.Sheets[sheetName];
@@ -1138,11 +1138,11 @@
       if (!hasData) continue;
       var obj = {};
       for (var j = 0; j < headers.length; j++){
-        if (headers[j]) obj[headers[j]] = (row[j] == null ? '' : row[j]);
+        if (headers[j]) obj[headers[j]] = (row[j]==null?'':row[j]);
       }
       items.push(obj);
     }
-    console.log('[parseItemsSheet] headerRow:', headerIdx, 'cols:', headers.filter(Boolean).length, 'rows:', items.length);
+    console.log('[parseItemsSheet] headerRow:', headerIdx, 'dataRows:', items.length);
     return items;
   }
 
@@ -1281,7 +1281,7 @@ async function autoLoadExcel() {
     if (!monthlyName) throw new Error('monthly 시트를 찾을 수 없습니다. (시트: ' + wb.SheetNames.join(', ') + ')');
     if (!itemsName)   throw new Error('parts/items 시트를 찾을 수 없습니다. (시트: ' + wb.SheetNames.join(', ') + ')');
 
-    var monthly = XLSX.utils.sheet_to_json(wb.Sheets[monthlyName], { defval: '' });
+    var monthly = XLSX.utils.sheet_to_json(wb.Sheets[monthlyName], { defval: '', raw: false, dateNF: 'yyyy-mm' });
     var items   = parseItemsSheet(wb, itemsName);
 
     updateReport(monthly, items, { sourceName: 'spare_data.xlsx (GitHub 자동 로드)' });
